@@ -7,6 +7,8 @@ import (
 	"unsafe"
 )
 
+//#include <stdlib.h>
+//#include <string.h>
 import "C"
 
 type SQLSMALLINT = C.short
@@ -17,8 +19,8 @@ type SQLCHAR = C.uchar
 type SQLSCHAR = C.char
 type SQLHSTMT = SQLHANDLE
 type SQLPOINTER = unsafe.Pointer
-type SQLINTEGER = C.int
-type SQLUINTEGER = C.uint
+type SQLINTEGER = C.long
+type SQLUINTEGER = C.ulong
 type SQLUSMALLINT = C.ushort
 type SQLULEN = SQLUINTEGER
 type SQLLEN = SQLINTEGER
@@ -109,19 +111,30 @@ func (e *environmentHandle) init() {
 }
 
 type connectionHandle struct {
-	env environmentHandle
+	env *environmentHandle
 }
 
-func (c *connectionHandle) init(envHandle environmentHandle) {
+func (c *connectionHandle) init(envHandle *environmentHandle) {
 	c.env = envHandle
 }
 
 type statementHandle struct {
-	conn connectionHandle
+	conn  *connectionHandle
+	data  [][]string
+	index int
 }
 
-func (s *statementHandle) init(connHandle connectionHandle) {
+func (s *statementHandle) init(connHandle *connectionHandle) {
 	s.conn = connHandle
+	s.index = -1
+	s.data = [][]string{
+		{"a1", "b1", "c1", "d1", "e1"},
+		{"a2", "b2", "c2", "d2", "e2"},
+		{"a3", "b3", "c3", "d3", "e3"},
+		{"a4", "b4", "c4", "d4", "e4"},
+		{"a5", "b5", "c5", "d5", "e5"},
+		{"a6", "b6", "c6", "d6", "e6"},
+	}
 }
 
 // SQLRETURN SQLAllocHandle(
@@ -137,23 +150,23 @@ func SQLAllocHandle(HandleType SQLSMALLINT, InputHandle SQLHANDLE, OutputHandleP
 	case SQL_HANDLE_ENV:
 		envHandle := environmentHandle{}
 		envHandle.init()
-		handle := cgo.NewHandle(envHandle)
+		handle := cgo.NewHandle(&envHandle)
 		fmt.Printf("SQLAllocHandle(SQL_HANDLE_ENV)\n")
 		fmt.Printf("   envHandle: %+v, handle: %d\n", envHandle, handle)
 		*OutputHandlePtr = uintptr(handle)
 	case SQL_HANDLE_DBC:
-		envHandle := cgo.Handle(InputHandle).Value().(environmentHandle)
+		envHandle := cgo.Handle(InputHandle).Value().(*environmentHandle)
 		connHandle := connectionHandle{}
 		connHandle.init(envHandle)
-		handle := cgo.NewHandle(connHandle)
+		handle := cgo.NewHandle(&connHandle)
 		fmt.Printf("SQLAllocHandle(SQL_HANDLE_DBC)\n")
 		fmt.Printf("   envHandle: %+v, handle: %d\n", envHandle, handle)
 		*OutputHandlePtr = uintptr(handle)
 	case SQL_HANDLE_STMT:
-		connHandle := cgo.Handle(InputHandle).Value().(connectionHandle)
+		connHandle := cgo.Handle(InputHandle).Value().(*connectionHandle)
 		stmtHandle := statementHandle{}
 		stmtHandle.init(connHandle)
-		handle := cgo.NewHandle(connHandle)
+		handle := cgo.NewHandle(&stmtHandle)
 		fmt.Printf("SQLAllocHandle(SQL_HANDLE_STMT)\n")
 		fmt.Printf("   connHandle: %+v, handle: %d\n", connHandle, handle)
 		*OutputHandlePtr = uintptr(handle)
@@ -171,9 +184,9 @@ func SQLAllocHandle(HandleType SQLSMALLINT, InputHandle SQLHANDLE, OutputHandleP
 //
 //export SQLPrepare
 func SQLPrepare(StatementHandle SQLHSTMT, StatementText *SQLSCHAR, TextLength SQLSMALLINT) SQLRETURN {
-	statementHandle := toGoString(StatementText, TextLength)
+	statementText := toGoString(StatementText, TextLength)
 
-	fmt.Printf("StatementText: %s\n", statementHandle)
+	fmt.Printf("StatementText: %s\n", statementText)
 
 	return SQL_SUCCESS
 }
@@ -185,6 +198,9 @@ func SQLPrepare(StatementHandle SQLHSTMT, StatementText *SQLSCHAR, TextLength SQ
 //export SQLExecute
 func SQLExecute(StatementHandle SQLHSTMT) SQLRETURN {
 	fmt.Printf("MOOO")
+
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s.index = -1
 
 	return SQL_SUCCESS
 }
@@ -301,7 +317,66 @@ func SQLBindCol(StatementHandle SQLHSTMT, ColumnNumber SQLUSMALLINT, TargetType 
 func SQLFetchScroll(StatementHandle SQLHSTMT, FetchOrientation SQLSMALLINT, FetchOffset SQLLEN) SQLRETURN {
 	fmt.Printf("SQLFetchScroll %q  %q %q\n", StatementHandle, FetchOrientation, FetchOffset)
 
-	return SQL_NO_DATA
+	return SQL_SUCCESS
+}
+
+// SQLRETURN SQLFetch(
+//
+//	SQLHSTMT     StatementHandle);
+//
+//export SQLFetch
+func SQLFetch(StatementHandle SQLHSTMT) SQLRETURN {
+	//fmt.Printf("SQLFetch %q\n", StatementHandle)
+
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s.index = s.index + 1
+
+	//fmt.Printf("  index %q\n", s.index)
+	//fmt.Printf("  data len %q\n", len(s.data))
+
+	if s.index >= len(s.data) {
+		return SQL_NO_DATA
+	}
+
+	return SQL_SUCCESS
+}
+
+// SQLRETURN SQLGetData(
+//
+//	SQLHSTMT       StatementHandle,
+//	SQLUSMALLINT   Col_or_Param_Num,
+//	SQLSMALLINT    TargetType,
+//	SQLPOINTER     TargetValuePtr,
+//	SQLLEN         BufferLength,
+//	SQLLEN *       StrLen_or_IndPtr);
+//
+//export SQLGetData
+func SQLGetData(StatementHandle SQLHSTMT, Col_or_Param_Num SQLUSMALLINT, TargetType SQLSMALLINT,
+	TargetValuePtr SQLPOINTER, BufferLength SQLLEN, StrLen_or_IndPtr *SQLLEN) SQLRETURN {
+
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+
+	dst := (*C.char)(TargetValuePtr)
+	src := C.CString(s.data[s.index][Col_or_Param_Num-1])
+	defer C.free(unsafe.Pointer(src))
+	C.strncpy(dst, src, C.ulong(BufferLength))
+
+	return SQL_SUCCESS
+
+}
+
+// SQLRETURN SQLRowCount(
+//
+//	SQLHSTMT   StatementHandle,
+//	SQLLEN *   RowCountPtr);
+//
+//export SQLRowCount
+func SQLRowCount(StatementHandle SQLHSTMT, RowCountPtr *SQLLEN) SQLRETURN {
+	fmt.Printf("SQLRowCount %q %v\n", StatementHandle, RowCountPtr)
+
+	*RowCountPtr = 1
+
+	return SQL_SUCCESS
 }
 
 // SQLRETURN SQLCancel(
