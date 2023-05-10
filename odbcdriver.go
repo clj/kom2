@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	"runtime/cgo"
 	"unsafe"
 )
 
@@ -9,7 +11,7 @@ import "C"
 
 type SQLSMALLINT = C.short
 type SQLRETURN = SQLSMALLINT
-type SQLHANDLE = unsafe.Pointer
+type SQLHANDLE = uintptr
 type SQLHDBC = SQLHANDLE
 type SQLCHAR = C.uchar
 type SQLSCHAR = C.char
@@ -27,19 +29,18 @@ type SQLLEN = SQLINTEGER
 //  #define SQL_NULL_DATA             (-1)
 //  #define SQL_DATA_AT_EXEC          (-2)
 //  #define SQL_SUCCESS                0
-const SQL_SUCCESS SQLRETURN = 0
-
 // #define SQL_SUCCESS_WITH_INFO      1
 // #if (ODBCVER >= 0x0300)
 // #define SQL_NO_DATA              100
-const SQL_NO_DATA SQLRETURN = 100
-
 //  #endif
 //  #define SQL_ERROR                 (-1)
 //  #define SQL_INVALID_HANDLE        (-2)
 //  #define SQL_STILL_EXECUTING        2
 //  #define SQL_NEED_DATA             99
 //  #define SQL_SUCCEEDED(rc) (((rc)&(~1))==0)
+const SQL_SUCCESS SQLRETURN = 0
+const SQL_NO_DATA SQLRETURN = 100
+const SQL_ERROR SQLRETURN = -1
 
 /****************************
  * use these to indicate string termination to some function
@@ -49,6 +50,17 @@ const SQL_NO_DATA SQLRETURN = 100
 const SQL_NTS SQLSMALLINT = -3
 
 //const SQL_NTSL = -3
+
+// /* handle type identifiers */
+// #if (ODBCVER >= 0x0300)
+// #define SQL_HANDLE_ENV             1
+// #define SQL_HANDLE_DBC             2
+// #define SQL_HANDLE_STMT            3
+// #define SQL_HANDLE_DESC            4
+// #endif
+const SQL_HANDLE_ENV SQLSMALLINT = 1
+const SQL_HANDLE_DBC SQLSMALLINT = 2
+const SQL_HANDLE_STMT SQLSMALLINT = 3
 
 func toGoString(str *SQLSCHAR, len SQLSMALLINT) string {
 	if str == nil {
@@ -88,6 +100,30 @@ func SQLConnect(ConnectionHandle SQLHDBC,
 	return SQL_SUCCESS
 }
 
+type environmentHandle struct {
+	httpClient *http.Client
+}
+
+func (e *environmentHandle) init() {
+	e.httpClient = &http.Client{}
+}
+
+type connectionHandle struct {
+	env environmentHandle
+}
+
+func (c *connectionHandle) init(envHandle environmentHandle) {
+	c.env = envHandle
+}
+
+type statementHandle struct {
+	conn connectionHandle
+}
+
+func (s *statementHandle) init(connHandle connectionHandle) {
+	s.conn = connHandle
+}
+
 // SQLRETURN SQLAllocHandle(
 //
 //	SQLSMALLINT   HandleType,
@@ -96,6 +132,34 @@ func SQLConnect(ConnectionHandle SQLHDBC,
 //
 //export SQLAllocHandle
 func SQLAllocHandle(HandleType SQLSMALLINT, InputHandle SQLHANDLE, OutputHandlePtr *SQLHANDLE) SQLRETURN {
+	fmt.Printf("SQLAllocHandle(%d)\n", HandleType)
+	switch HandleType {
+	case SQL_HANDLE_ENV:
+		envHandle := environmentHandle{}
+		envHandle.init()
+		handle := cgo.NewHandle(envHandle)
+		fmt.Printf("SQLAllocHandle(SQL_HANDLE_ENV)\n")
+		fmt.Printf("   envHandle: %+v, handle: %d\n", envHandle, handle)
+		*OutputHandlePtr = uintptr(handle)
+	case SQL_HANDLE_DBC:
+		envHandle := cgo.Handle(InputHandle).Value().(environmentHandle)
+		connHandle := connectionHandle{}
+		connHandle.init(envHandle)
+		handle := cgo.NewHandle(connHandle)
+		fmt.Printf("SQLAllocHandle(SQL_HANDLE_DBC)\n")
+		fmt.Printf("   envHandle: %+v, handle: %d\n", envHandle, handle)
+		*OutputHandlePtr = uintptr(handle)
+	case SQL_HANDLE_STMT:
+		connHandle := cgo.Handle(InputHandle).Value().(connectionHandle)
+		stmtHandle := statementHandle{}
+		stmtHandle.init(connHandle)
+		handle := cgo.NewHandle(connHandle)
+		fmt.Printf("SQLAllocHandle(SQL_HANDLE_STMT)\n")
+		fmt.Printf("   connHandle: %+v, handle: %d\n", connHandle, handle)
+		*OutputHandlePtr = uintptr(handle)
+	default:
+		return SQL_ERROR
+	}
 	return SQL_SUCCESS
 }
 
