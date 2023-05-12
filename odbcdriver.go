@@ -25,9 +25,13 @@ func SQLGetPrivateProfileString(section, entry, defaultValue, filename string) s
 	defer C.free(unsafe.Pointer(cDefaultValue))
 	cFilename := C.CString(filename)
 	defer C.free(unsafe.Pointer(cFilename))
-	C.SQLGetPrivateProfileString(cSection, cEntry, cDefaultValue, nil, 0, cFilename)
 
-	return ""
+	buffer := (*C.char)(C.malloc(C.SQL_MAX_MESSAGE_LENGTH))
+	defer C.free(unsafe.Pointer(buffer))
+
+	C.SQLGetPrivateProfileString(cSection, cEntry, cDefaultValue, buffer, C.SQL_MAX_MESSAGE_LENGTH, cFilename)
+
+	return C.GoString(buffer)
 }
 
 func toGoString[T C.int | C.short](str *C.SQLCHAR, len T) string {
@@ -55,11 +59,59 @@ func SQLConnect(ConnectionHandle C.SQLHDBC,
 	fmt.Printf("UserName: %s\n", userName)
 	fmt.Printf("Authentication: %s\n", authentication)
 
+	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
+
+	// Todo: also pull from the DSN
+	connHandle.inventreeConfig.server = SQLGetPrivateProfileString("kom2", "server", "", ".odbc.ini")
+	if connHandle.inventreeConfig.server == "" {
+		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No server specified"})
+	}
+
 	return C.SQL_SUCCESS
 }
 
+type DriverError struct {
+	SqlState    string
+	NativeError string
+	Message     string
+	Err         error
+}
+
+func (e *DriverError) Error() string { return e.SqlState + ": " + e.Message }
+func (e *DriverError) Unwrap() error { return e.Err }
+func (e *DriverError) SetAndReturnError(handle errorInfo) C.SQLRETURN {
+	handle.errorInfo = e
+
+	return C.SQL_ERROR
+}
+
+func SetAndReturnError(handle interface{}, err *DriverError) C.SQLRETURN {
+	switch h := handle.(type) {
+	case *connectionHandle:
+		h.errorInfo.errorInfo = err
+	}
+
+	return C.SQL_ERROR
+}
+
+type errorInfo struct {
+	errorInfo *DriverError
+}
+
 type environmentHandle struct {
-	httpClient      *http.Client
+	errorInfo
+
+	httpClient *http.Client
+}
+
+func (e *environmentHandle) init() {
+	e.httpClient = &http.Client{}
+}
+
+type connectionHandle struct {
+	errorInfo
+
+	env             *environmentHandle
 	inventreeConfig struct {
 		server string
 		//userName string
@@ -68,12 +120,16 @@ type environmentHandle struct {
 	categoryMapping map[string]int
 }
 
-func (e *environmentHandle) apiGet(resource string, args map[string]string, result any) error {
-	request, err := http.NewRequest("GET", e.inventreeConfig.server+resource, nil)
+func (c *connectionHandle) init(envHandle *environmentHandle) {
+	c.env = envHandle
+}
+
+func (c *connectionHandle) apiGet(resource string, args map[string]string, result any) error {
+	request, err := http.NewRequest("GET", c.inventreeConfig.server+resource, nil)
 	if err != nil {
 		return err
 	}
-	request.Header.Add("Authorization", fmt.Sprintf("Token %s", e.inventreeConfig.apiToken))
+	request.Header.Add("Authorization", fmt.Sprintf("Token %s", c.inventreeConfig.apiToken))
 	if args != nil {
 		q := request.URL.Query()
 		for key, val := range args {
@@ -81,7 +137,7 @@ func (e *environmentHandle) apiGet(resource string, args map[string]string, resu
 		}
 		request.URL.RawQuery = q.Encode()
 	}
-	response, err := e.httpClient.Do(request)
+	response, err := c.env.httpClient.Do(request)
 	if err != nil {
 		return err
 	}
@@ -98,41 +154,26 @@ func (e *environmentHandle) apiGet(resource string, args map[string]string, resu
 	return nil
 }
 
-func (e *environmentHandle) updateCategoryMapping() error {
+func (c *connectionHandle) updateCategoryMapping() error {
 	type category struct {
 		Pk         int    `json:"pk"`
 		Pathstring string `json:"pathstring"`
 	}
 	var categories = []category{}
-	if err := e.apiGet("/api/part/category/", nil, &categories); err != nil {
+	if err := c.apiGet("/api/part/category/", nil, &categories); err != nil {
 		return err
 	}
 
-	e.categoryMapping = make(map[string]int)
+	c.categoryMapping = make(map[string]int)
 	for _, category := range categories {
-		e.categoryMapping[category.Pathstring] = category.Pk
+		c.categoryMapping[category.Pathstring] = category.Pk
 	}
 	return nil
 }
 
-func (e *environmentHandle) init() {
-	e.httpClient = &http.Client{}
-
-	SQLGetPrivateProfileString("kom2", "UID", "", ".odbc.ini")
-	// if err := e.updateCategoryMapping(); err != nil {
-	// 	panic(err)
-	// }
-}
-
-type connectionHandle struct {
-	env *environmentHandle
-}
-
-func (c *connectionHandle) init(envHandle *environmentHandle) {
-	c.env = envHandle
-}
-
 type statementHandle struct {
+	errorInfo
+
 	conn  *connectionHandle
 	data  [][]string
 	index int
@@ -151,6 +192,51 @@ func (s *statementHandle) init(connHandle *connectionHandle) {
 	}
 }
 
+func copyGoStringToCString(dst *C.uchar, src string, length int) {
+	cSrc := C.CString(src)
+	defer C.free(unsafe.Pointer(cSrc))
+	C.strncpy((*C.char)(unsafe.Pointer(dst)), cSrc, C.ulong(length))
+}
+
+//export SQLGetDiagRec
+func SQLGetDiagRec(
+	HandleType C.SQLSMALLINT,
+	Handle C.SQLHANDLE,
+	RecNumber C.SQLSMALLINT,
+	SQLState *C.SQLCHAR,
+	NativeErrorPtr *C.SQLINTEGER,
+	MessageText *C.SQLCHAR,
+	BufferLength C.SQLSMALLINT,
+	TextLengthPtr *C.SQLSMALLINT) C.SQLRETURN {
+
+	if RecNumber != 1 {
+		return C.SQL_NO_DATA
+	}
+	genericHandle := cgo.Handle(Handle).Value()
+	var errorInfo *DriverError
+
+	switch handle := genericHandle.(type) {
+	case *environmentHandle:
+		errorInfo = handle.errorInfo.errorInfo
+	case *connectionHandle:
+		errorInfo = handle.errorInfo.errorInfo
+	case *statementHandle:
+		errorInfo = handle.errorInfo.errorInfo
+	default:
+		panic("unknown handle type")
+	}
+
+	if errorInfo == nil {
+		return C.SQL_NO_DATA
+	}
+
+	copyGoStringToCString(SQLState, errorInfo.SqlState, 5)
+	copyGoStringToCString(MessageText, errorInfo.Message, int(BufferLength))
+	*TextLengthPtr = C.short(len(errorInfo.Message))
+
+	return C.SQL_SUCCESS
+}
+
 //export SQLAllocHandle
 func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHandlePtr *C.SQLHANDLE) C.SQLRETURN {
 	fmt.Printf("SQLAllocHandle(%d)\n", HandleType)
@@ -167,9 +253,9 @@ func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHan
 		connHandle := connectionHandle{}
 		connHandle.init(envHandle)
 		handle := cgo.NewHandle(&connHandle)
+		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
 		fmt.Printf("SQLAllocHandle(SQL_HANDLE_DBC)\n")
 		fmt.Printf("   envHandle: %+v, handle: %d\n", envHandle, handle)
-		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
 	case C.SQL_HANDLE_STMT:
 		connHandle := cgo.Handle(InputHandle).Value().(*connectionHandle)
 		stmtHandle := statementHandle{}
