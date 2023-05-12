@@ -1,15 +1,40 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"runtime/cgo"
 	"unsafe"
 )
 
-//#include <stdlib.h>
-//#include <string.h>
+// #cgo LDFLAGS: -lodbcinst
+// #include <stdlib.h>
+// #include <string.h>
+// #include <sqltypes.h>
+// #include <sql.h>
+//
+// int SQLGetPrivateProfileString(LPCSTR lpszSection,
+// 	LPCSTR lpszEntry,
+// 	LPCSTR lpszDefault,
+// 	LPSTR  lpszRetBuffer,
+// 	int    cbRetBuffer,
+// 	LPCSTR lpszFilename);
 import "C"
+
+func SQLGetPrivateProfileString(section, entry, defaultValue, filename string) string {
+	cSection := C.CString(section)
+	defer C.free(unsafe.Pointer(cSection))
+	cEntry := C.CString(entry)
+	defer C.free(unsafe.Pointer(cEntry))
+	cDefaultValue := C.CString(defaultValue)
+	defer C.free(unsafe.Pointer(cDefaultValue))
+	cFilename := C.CString(filename)
+	defer C.free(unsafe.Pointer(cFilename))
+	C.SQLGetPrivateProfileString(cSection, cEntry, cDefaultValue, nil, 0, cFilename)
+
+	return ""
+}
 
 type SQLSMALLINT = C.short
 type SQLRETURN = SQLSMALLINT
@@ -103,11 +128,69 @@ func SQLConnect(ConnectionHandle SQLHDBC,
 }
 
 type environmentHandle struct {
-	httpClient *http.Client
+	httpClient      *http.Client
+	inventreeConfig struct {
+		server string
+		//userName string
+		apiToken string
+	}
+	categoryMapping map[string]int
+}
+
+func (e *environmentHandle) apiGet(resource string, args map[string]string, result any) error {
+	request, err := http.NewRequest("GET", e.inventreeConfig.server+resource, nil)
+	if err != nil {
+		return err
+	}
+	request.Header.Add("Authorization", fmt.Sprintf("Token %s", e.inventreeConfig.apiToken))
+	if args != nil {
+		q := request.URL.Query()
+		for key, val := range args {
+			q.Add(key, val)
+		}
+		request.URL.RawQuery = q.Encode()
+	}
+	response, err := e.httpClient.Do(request)
+	if err != nil {
+		return err
+	}
+	if response.StatusCode != 200 {
+		return fmt.Errorf("unexpected status code %s", response.Status)
+	}
+
+	decoder := json.NewDecoder(response.Body)
+	err = decoder.Decode(result)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *environmentHandle) updateCategoryMapping() error {
+	type category struct {
+		Pk         int    `json:"pk"`
+		Pathstring string `json:"pathstring"`
+	}
+	var categories = []category{}
+	if err := e.apiGet("/api/part/category/", nil, &categories); err != nil {
+		return err
+	}
+
+	e.categoryMapping = make(map[string]int)
+	for _, category := range categories {
+		e.categoryMapping[category.Pathstring] = category.Pk
+	}
+	return nil
 }
 
 func (e *environmentHandle) init() {
 	e.httpClient = &http.Client{}
+
+	SQLGetPrivateProfileString("kom2", "UID", "", ".odbc.ini")
+	// if err := e.updateCategoryMapping(); err != nil {
+	// 	panic(err)
+	// }
 }
 
 type connectionHandle struct {
