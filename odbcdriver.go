@@ -51,20 +51,30 @@ func SQLConnect(ConnectionHandle C.SQLHDBC,
 	Authentication *C.SQLCHAR, NameLength3 C.SQLSMALLINT) C.SQLRETURN {
 
 	fmt.Printf("%v %d %v %d %v %d\n", ServerName, NameLength1, UserName, NameLength2, Authentication, NameLength3)
-	serverName := toGoString(ServerName, NameLength1)
-	userName := toGoString(UserName, NameLength2)
-	authentication := toGoString(Authentication, NameLength3)
-
-	fmt.Printf("ServerName: %s\n", serverName)
-	fmt.Printf("UserName: %s\n", userName)
-	fmt.Printf("Authentication: %s\n", authentication)
 
 	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
 
-	// Todo: also pull from the DSN
+	// Todo: also pull from the DSN/serverName
 	connHandle.inventreeConfig.server = SQLGetPrivateProfileString("kom2", "server", "", ".odbc.ini")
+	connHandle.inventreeConfig.apiToken = SQLGetPrivateProfileString("kom2", "password", "", ".odbc.ini")
+
+	// if userName := toGoString(UserName, NameLength2); username != "" {
+	// 	connHandle.inventreeConfig.user = userName
+	// }
+	if authentication := toGoString(Authentication, NameLength3); authentication != "" {
+		connHandle.inventreeConfig.apiToken = authentication
+	}
+
 	if connHandle.inventreeConfig.server == "" {
 		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No server specified"})
+	}
+	if connHandle.inventreeConfig.apiToken == "" {
+		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No API token (Password) specified"})
+	}
+
+	if err := connHandle.updateCategoryMapping(); err != nil {
+		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "Error updating category list", Err: err})
+
 	}
 
 	return C.SQL_SUCCESS
@@ -175,21 +185,13 @@ type statementHandle struct {
 	errorInfo
 
 	conn  *connectionHandle
-	data  [][]string
+	data  [][]any
 	index int
 }
 
 func (s *statementHandle) init(connHandle *connectionHandle) {
 	s.conn = connHandle
 	s.index = -1
-	s.data = [][]string{
-		{"a1", "b1", "c1", "d1", "e1"},
-		{"a2", "b2", "c2", "d2", "e2"},
-		{"a3", "b3", "c3", "d3", "e3"},
-		{"a4", "b4", "c4", "d4", "e4"},
-		{"a5", "b5", "c5", "d5", "e5"},
-		{"a6", "b6", "c6", "d6", "e6"},
-	}
 }
 
 func copyGoStringToCString(dst *C.uchar, src string, length int) {
@@ -285,6 +287,14 @@ func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	s.index = -1
+	s.data = [][]any{
+		{"a1", "b1", "c1", "d1", "e1"},
+		{"a2", "b2", "c2", "d2", "e2"},
+		{"a3", "b3", "c3", "d3", "e3"},
+		{"a4", "b4", "c4", "d4", "e4"},
+		{"a5", "b5", "c5", "d5", "e5"},
+		{"a6", "b6", "c6", "d6", "e6"},
+	}
 
 	return C.SQL_SUCCESS
 }
@@ -311,6 +321,12 @@ func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C
 	tableType := toGoString(TableType, NameLength1)
 
 	fmt.Printf("SQLTables %q  %q %q  %q\n", catalogName, schemaName, tableName, tableType)
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+
+	categories := s.conn.categoryMapping
+	for name, _ := range categories {
+		s.data = append(s.data, []any{nil, nil, name, "TABLE"})
+	}
 
 	return C.SQL_SUCCESS
 }
@@ -347,6 +363,16 @@ func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetT
 func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, FetchOffset C.SQLLEN) C.SQLRETURN {
 	fmt.Printf("SQLFetchScroll %q  %q %q\n", StatementHandle, FetchOrientation, FetchOffset)
 
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s.index = s.index + 1
+
+	//fmt.Printf("  index %q\n", s.index)
+	//fmt.Printf("  data len %q\n", len(s.data))
+
+	if s.index >= len(s.data) {
+		return C.SQL_NO_DATA
+	}
+
 	return C.SQL_SUCCESS
 }
 
@@ -373,10 +399,15 @@ func SQLGetData(StatementHandle C.SQLHSTMT, Col_or_Param_Num C.SQLUSMALLINT, Tar
 
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
-	dst := (*C.char)(TargetValuePtr)
-	src := C.CString(s.data[s.index][Col_or_Param_Num-1])
-	defer C.free(unsafe.Pointer(src))
-	C.strncpy(dst, src, C.ulong(BufferLength))
+	switch value := s.data[s.index][Col_or_Param_Num-1].(type) {
+	case string:
+		dst := (*C.char)(TargetValuePtr)
+		src := C.CString(value)
+		defer C.free(unsafe.Pointer(src))
+		C.strncpy(dst, src, C.ulong(BufferLength))
+	case nil:
+		StrLen_or_IndPtr = nil
+	}
 
 	return C.SQL_SUCCESS
 
