@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/cgo"
+	"unicode/utf16"
 	"unsafe"
 )
 
@@ -13,6 +14,7 @@ import (
 // #include <string.h>
 // #include <sqltypes.h>
 // #include <sql.h>
+// #include <sqlext.h>
 // #include <odbcinst.h>
 import "C"
 
@@ -44,16 +46,7 @@ func toGoString[T C.int | C.short](str *C.SQLCHAR, len T) string {
 	return C.GoStringN((*C.char)(unsafe.Pointer(str)), C.int(len))
 }
 
-//export SQLConnect
-func SQLConnect(ConnectionHandle C.SQLHDBC,
-	ServerName *C.SQLCHAR, NameLength1 C.SQLSMALLINT,
-	UserName *C.SQLCHAR, NameLength2 C.SQLSMALLINT,
-	Authentication *C.SQLCHAR, NameLength3 C.SQLSMALLINT) C.SQLRETURN {
-
-	fmt.Printf("%v %d %v %d %v %d\n", ServerName, NameLength1, UserName, NameLength2, Authentication, NameLength3)
-
-	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
-
+func (connHandle *connectionHandle) initConnection() C.SQLRETURN {
 	// Todo: also pull from the DSN/serverName
 	connHandle.inventreeConfig.server = SQLGetPrivateProfileString("kom2", "server", "", ".odbc.ini")
 	connHandle.inventreeConfig.apiToken = SQLGetPrivateProfileString("kom2", "password", "", ".odbc.ini")
@@ -61,9 +54,9 @@ func SQLConnect(ConnectionHandle C.SQLHDBC,
 	// if userName := toGoString(UserName, NameLength2); username != "" {
 	// 	connHandle.inventreeConfig.user = userName
 	// }
-	if authentication := toGoString(Authentication, NameLength3); authentication != "" {
-		connHandle.inventreeConfig.apiToken = authentication
-	}
+	// if authentication := toGoString(Authentication, NameLength3); authentication != "" {
+	// 	connHandle.inventreeConfig.apiToken = authentication
+	// }
 
 	if connHandle.inventreeConfig.server == "" {
 		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No server specified"})
@@ -76,6 +69,39 @@ func SQLConnect(ConnectionHandle C.SQLHDBC,
 		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "Error updating category list", Err: err})
 
 	}
+
+	return C.SQL_SUCCESS
+}
+
+//export SQLConnect
+func SQLConnect(ConnectionHandle C.SQLHDBC,
+	ServerName *C.SQLCHAR, NameLength1 C.SQLSMALLINT,
+	UserName *C.SQLCHAR, NameLength2 C.SQLSMALLINT,
+	Authentication *C.SQLCHAR, NameLength3 C.SQLSMALLINT) C.SQLRETURN {
+
+	fmt.Printf("%v %d %v %d %v %d\n", ServerName, NameLength1, UserName, NameLength2, Authentication, NameLength3)
+
+	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
+	connHandle.initConnection()
+
+	return C.SQL_SUCCESS
+}
+
+//export SQLDriverConnect
+func SQLDriverConnect(
+	ConnectionHandle C.SQLHDBC,
+	WindowHandle C.SQLHWND,
+	InConnectionString *C.SQLCHAR,
+	StringLength1 C.SQLSMALLINT,
+	OutConnectionString *C.SQLCHAR,
+	BufferLength C.SQLSMALLINT,
+	StringLength2Ptr *C.SQLSMALLINT,
+	DriverCompletion C.SQLUSMALLINT) C.SQLRETURN {
+
+	fmt.Printf("SQLGSQLDriverConnectetInfo %q\n", InConnectionString)
+
+	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
+	connHandle.initConnection()
 
 	return C.SQL_SUCCESS
 }
@@ -181,10 +207,27 @@ func (c *connectionHandle) updateCategoryMapping() error {
 	return nil
 }
 
+type bind struct {
+	TargetType       C.SQLSMALLINT
+	TargetValuePtr   C.SQLPOINTER
+	BufferLength     C.SQLLEN
+	StrLen_or_IndPtr *C.SQLLEN
+}
+
+type desc struct {
+	name          string
+	dataType      C.short
+	colSize       int
+	decimalDigits int
+	nullable      int
+}
+
 type statementHandle struct {
 	errorInfo
 
 	conn  *connectionHandle
+	def   []*desc
+	binds []*bind
 	data  [][]any
 	index int
 }
@@ -194,10 +237,23 @@ func (s *statementHandle) init(connHandle *connectionHandle) {
 	s.index = -1
 }
 
+func (s *statementHandle) populateBinds() {
+	for idx, bind := range s.binds {
+		if bind == nil {
+			fmt.Println("phhhhh\n")
+			continue
+		}
+		fmt.Println("%d\n", idx)
+
+		value := s.data[s.index][idx]
+		populateData(value, bind.TargetType, bind.TargetValuePtr, bind.BufferLength, bind.StrLen_or_IndPtr)
+	}
+}
+
 func copyGoStringToCString(dst *C.uchar, src string, length int) {
-	cSrc := C.CString(src)
+	cSrc := C.CString(src + "\x00")
 	defer C.free(unsafe.Pointer(cSrc))
-	C.strncpy((*C.char)(unsafe.Pointer(dst)), cSrc, C.ulong(length))
+	C.strncpy((*C.char)(unsafe.Pointer(dst)), cSrc, C.ulong(length)+1) // + 1 because we add "\0"
 }
 
 //export SQLGetDiagRec
@@ -301,9 +357,9 @@ func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 
 //export SQLNumResultCols
 func SQLNumResultCols(StatementHandle C.SQLHSTMT, ColumnCountPtr *C.SQLSMALLINT) C.SQLRETURN {
-	fmt.Printf("MOOO2")
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
-	*ColumnCountPtr = 5
+	*ColumnCountPtr = C.short(len(s.data[0]))
 
 	return C.SQL_SUCCESS
 }
@@ -323,9 +379,16 @@ func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C
 	fmt.Printf("SQLTables %q  %q %q  %q\n", catalogName, schemaName, tableName, tableType)
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
+	s.def = []*desc{
+		{name: "TABLE_CAT", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
+		{name: "TABLE_SCHEM", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
+		{name: "TABLE_NAME", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
+		{name: "TABLE_TYPE", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
+		{name: "REMARKS", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
+	}
 	categories := s.conn.categoryMapping
 	for name, _ := range categories {
-		s.data = append(s.data, []any{nil, nil, name, "TABLE"})
+		s.data = append(s.data, []any{nil, nil, name, "TABLE", nil})
 	}
 
 	return C.SQL_SUCCESS
@@ -346,6 +409,18 @@ func SQLDescribeCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, Col
 	fmt.Printf("SQLDescribeCol %q  %q %v %q %v %v %v %v %v\n", StatementHandle, ColumnNumber, ColumnName, BufferLength,
 		NameLengthPtr, DataTypePtr, ColumnSizePtr, DecimalDigitsPtr, NullablePtr)
 
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+
+	if s.def == nil || s.def[ColumnNumber-1] == nil {
+		return C.SQL_SUCCESS
+	}
+
+	col := s.def[ColumnNumber-1]
+	copyGoStringToCString(ColumnName, col.name, len(col.name))
+	*NameLengthPtr = C.short(len(col.name))
+	*DataTypePtr = C.short(col.dataType)
+	*NullablePtr = C.short(col.nullable)
+
 	return C.SQL_SUCCESS
 }
 
@@ -355,6 +430,18 @@ func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetT
 
 	fmt.Printf("SQLBindCol %q  %q %v %q %v %v\n", StatementHandle, ColumnNumber, TargetType, TargetValuePtr,
 		BufferLength, StrLen_or_IndPtr)
+
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	if s.binds == nil {
+		s.binds = make([]*bind, len(s.data[0]))
+	}
+
+	s.binds[ColumnNumber-1] = &bind{
+		TargetType:       TargetType,
+		TargetValuePtr:   TargetValuePtr,
+		BufferLength:     BufferLength,
+		StrLen_or_IndPtr: StrLen_or_IndPtr,
+	}
 
 	return C.SQL_SUCCESS
 }
@@ -371,6 +458,10 @@ func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, 
 
 	if s.index >= len(s.data) {
 		return C.SQL_NO_DATA
+	}
+
+	if s.binds != nil {
+		s.populateBinds()
 	}
 
 	return C.SQL_SUCCESS
@@ -390,7 +481,48 @@ func SQLFetch(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 		return C.SQL_NO_DATA
 	}
 
+	if s.binds != nil {
+		s.populateBinds()
+	}
+
 	return C.SQL_SUCCESS
+}
+
+func utf8stringToUTF16(str string) *[]uint16 {
+	var runeValue rune
+	result := make([]uint16, 0, C.SQL_MAX_MESSAGE_LENGTH)
+	for _, runeValue = range str {
+		result = utf16.AppendRune(result, runeValue)
+	}
+	return &result
+}
+
+func populateData(value any, TargetType C.SQLSMALLINT,
+	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN) {
+
+	//fmt.Printf("SQL_C_CHAR: %q, SQL_C_WCHAR: %q: TargetType: %q\n", C.SQL_C_CHAR, C.SQL_C_WCHAR, TargetType)
+	switch value := value.(type) {
+	case string:
+		//fmt.Printf("  string %q\n", value)
+		switch TargetType {
+		case C.SQL_C_CHAR:
+			dst := (*C.char)(TargetValuePtr)
+			src := C.CString(value)
+			defer C.free(unsafe.Pointer(src))
+			C.strncpy(dst, src, C.ulong(BufferLength))
+			*StrLen_or_IndPtr = C.long(len(value))
+		case C.SQL_C_WCHAR:
+			src := utf8stringToUTF16(value)
+			//dst := (*C.int16_t)(TargetValuePtr)
+			//dst := unsafe.Pointer((TargetValuePtr))
+			//fmt.Printf("WWQQEE: %+q, %d", src, len(*src))
+			C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.ulong(len(*src)*2))
+			*StrLen_or_IndPtr = C.long(len(*src) * 2)
+		}
+	case nil:
+		//fmt.Printf("  nil\n")
+		*StrLen_or_IndPtr = C.SQL_NULL_DATA
+	}
 }
 
 //export SQLGetData
@@ -399,15 +531,9 @@ func SQLGetData(StatementHandle C.SQLHSTMT, Col_or_Param_Num C.SQLUSMALLINT, Tar
 
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
-	switch value := s.data[s.index][Col_or_Param_Num-1].(type) {
-	case string:
-		dst := (*C.char)(TargetValuePtr)
-		src := C.CString(value)
-		defer C.free(unsafe.Pointer(src))
-		C.strncpy(dst, src, C.ulong(BufferLength))
-	case nil:
-		StrLen_or_IndPtr = nil
-	}
+	fmt.Printf("%d\n", Col_or_Param_Num-1)
+
+	populateData(s.data[s.index][Col_or_Param_Num-1], TargetType, TargetValuePtr, BufferLength, StrLen_or_IndPtr)
 
 	return C.SQL_SUCCESS
 
@@ -449,6 +575,16 @@ func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePt
 //export SQLDisconnect
 func SQLDisconnect(ConnectionHandle C.SQLHDBC) C.SQLRETURN {
 	fmt.Printf("SQLGetInfo %q\n", ConnectionHandle)
+	return C.SQL_SUCCESS
+}
+
+//export SQLSetConnectAttr
+func SQLSetConnectAttr(
+	ConnectionHandle C.SQLHDBC,
+	Attribute C.SQLINTEGER,
+	ValuePtr C.SQLPOINTER,
+	StringLength C.SQLINTEGER) C.SQLRETURN {
+
 	return C.SQL_SUCCESS
 }
 
