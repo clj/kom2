@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/cgo"
+	"sort"
+	"strconv"
 	"unicode/utf16"
 	"unsafe"
 )
@@ -46,10 +48,10 @@ func toGoString[T C.int | C.short](str *C.SQLCHAR, len T) string {
 	return C.GoStringN((*C.char)(unsafe.Pointer(str)), C.int(len))
 }
 
-func (connHandle *connectionHandle) initConnection() C.SQLRETURN {
+func (connHandle *connectionHandle) initConnection(dsn string) C.SQLRETURN {
 	// Todo: also pull from the DSN/serverName
-	connHandle.inventreeConfig.server = SQLGetPrivateProfileString("kom2", "server", "", ".odbc.ini")
-	connHandle.inventreeConfig.apiToken = SQLGetPrivateProfileString("kom2", "password", "", ".odbc.ini")
+	connHandle.inventreeConfig.server = SQLGetPrivateProfileString(dsn, "server", "", ".odbc.ini")
+	connHandle.inventreeConfig.apiToken = SQLGetPrivateProfileString(dsn, "password", "", ".odbc.ini")
 
 	// if userName := toGoString(UserName, NameLength2); username != "" {
 	// 	connHandle.inventreeConfig.user = userName
@@ -65,10 +67,13 @@ func (connHandle *connectionHandle) initConnection() C.SQLRETURN {
 		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No API token (Password) specified"})
 	}
 
+	fmt.Println("WAHT???")
 	if err := connHandle.updateCategoryMapping(); err != nil {
-		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "Error updating category list", Err: err})
+		fmt.Println("oh???")
 
+		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "Error updating category list", Err: err})
 	}
+	fmt.Printf("%+q\n", connHandle.categoryMapping)
 
 	return C.SQL_SUCCESS
 }
@@ -81,8 +86,9 @@ func SQLConnect(ConnectionHandle C.SQLHDBC,
 
 	fmt.Printf("%v %d %v %d %v %d\n", ServerName, NameLength1, UserName, NameLength2, Authentication, NameLength3)
 
+	serverName := toGoString(ServerName, NameLength1)
 	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
-	connHandle.initConnection()
+	connHandle.initConnection(serverName)
 
 	return C.SQL_SUCCESS
 }
@@ -101,7 +107,7 @@ func SQLDriverConnect(
 	fmt.Printf("SQLGSQLDriverConnectetInfo %q\n", InConnectionString)
 
 	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
-	connHandle.initConnection()
+	connHandle.initConnection("xxx") // FIXME
 
 	return C.SQL_SUCCESS
 }
@@ -207,6 +213,61 @@ func (c *connectionHandle) updateCategoryMapping() error {
 	return nil
 }
 
+func keys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (s *statementHandle) fetchAllParts(category string, parts *[]map[string]any) error {
+	args := make(map[string]string)
+	args["category"] = strconv.Itoa(s.conn.categoryMapping[category])
+
+	return s.conn.apiGet("/api/part/", args, parts)
+}
+
+func (s *statementHandle) populateColDesc(data *[]map[string]any) {
+	columns := make(map[string]*desc)
+
+	for _, row := range *data {
+		for key, _ := range row {
+			if _, ok := columns[key]; !ok {
+				var dataType C.short
+				switch row[key].(type) {
+				case string:
+					dataType = C.SQL_VARCHAR
+				case float64:
+					dataType = C.SQL_DOUBLE
+				case bool:
+					dataType = C.SQL_INTEGER
+				}
+				columns[key] = &desc{name: key, dataType: dataType, nullable: C.SQL_NULLABLE}
+			}
+		}
+	}
+
+	s.columnNames = keys(columns)
+	sort.Strings(s.columnNames)
+
+	for _, name := range s.columnNames {
+		s.def = append(s.def, columns[name])
+	}
+}
+
+func (s *statementHandle) populateData(data *[]map[string]any) {
+	for _, row := range *data {
+		rowData := make([]any, len(s.def))
+		for idx, colName := range s.columnNames {
+			if value, ok := row[colName]; ok {
+				rowData[idx] = value
+			}
+		}
+		s.data = append(s.data, rowData)
+	}
+}
+
 type bind struct {
 	TargetType       C.SQLSMALLINT
 	TargetValuePtr   C.SQLPOINTER
@@ -225,11 +286,12 @@ type desc struct {
 type statementHandle struct {
 	errorInfo
 
-	conn  *connectionHandle
-	def   []*desc
-	binds []*bind
-	data  [][]any
-	index int
+	conn        *connectionHandle
+	columnNames []string
+	def         []*desc
+	binds       []*bind
+	data        [][]any
+	index       int
 }
 
 func (s *statementHandle) init(connHandle *connectionHandle) {
@@ -240,10 +302,10 @@ func (s *statementHandle) init(connHandle *connectionHandle) {
 func (s *statementHandle) populateBinds() {
 	for idx, bind := range s.binds {
 		if bind == nil {
-			fmt.Println("phhhhh\n")
+			//fmt.Println("phhhhh\n")
 			continue
 		}
-		fmt.Println("%d\n", idx)
+		//fmt.Println("%d\n", idx)
 
 		value := s.data[s.index][idx]
 		populateData(value, bind.TargetType, bind.TargetValuePtr, bind.BufferLength, bind.StrLen_or_IndPtr)
@@ -339,18 +401,18 @@ func SQLPrepare(StatementHandle C.SQLHSTMT, StatementText *C.SQLCHAR, TextLength
 
 //export SQLExecute
 func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
-	fmt.Printf("MOOO")
-
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	s.index = -1
-	s.data = [][]any{
-		{"a1", "b1", "c1", "d1", "e1"},
-		{"a2", "b2", "c2", "d2", "e2"},
-		{"a3", "b3", "c3", "d3", "e3"},
-		{"a4", "b4", "c4", "d4", "e4"},
-		{"a5", "b5", "c5", "d5", "e5"},
-		{"a6", "b6", "c6", "d6", "e6"},
-	}
+
+	var parts []map[string]any
+	s.fetchAllParts("Resistors", &parts)
+	s.populateColDesc(&parts)
+	s.populateData(&parts)
+
+	fmt.Printf("XXX: %d %d", len(parts), len(s.data))
+	//fmt.Printf("XXX: %+q", s.data)
+	//fmt.Printf("XXX: %+q", s.columnNames)
+	//fmt.Printf("XXX: %+q", s.def)
 
 	return C.SQL_SUCCESS
 }
@@ -359,7 +421,7 @@ func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 func SQLNumResultCols(StatementHandle C.SQLHSTMT, ColumnCountPtr *C.SQLSMALLINT) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
-	*ColumnCountPtr = C.short(len(s.data[0]))
+	*ColumnCountPtr = C.short(len(s.def))
 
 	return C.SQL_SUCCESS
 }
@@ -497,13 +559,25 @@ func utf8stringToUTF16(str string) *[]uint16 {
 	return &result
 }
 
+func targetTypeToString(TargetType C.SQLSMALLINT) string {
+	switch TargetType {
+	case C.SQL_C_CHAR:
+		return "SQL_C_CHAR"
+	case C.SQL_C_WCHAR:
+		return "SQL_C_WCHAR"
+	case C.SQL_C_SLONG:
+		return "SQL_C_SLONG"
+	default:
+		return fmt.Sprintf("??? (%d)", TargetType)
+	}
+}
+
 func populateData(value any, TargetType C.SQLSMALLINT,
 	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN) {
 
-	//fmt.Printf("SQL_C_CHAR: %q, SQL_C_WCHAR: %q: TargetType: %q\n", C.SQL_C_CHAR, C.SQL_C_WCHAR, TargetType)
+	//fmt.Printf("Type: %T TargetType: %d %s \n", value, TargetType, targetTypeToString(TargetType))
 	switch value := value.(type) {
 	case string:
-		//fmt.Printf("  string %q\n", value)
 		switch TargetType {
 		case C.SQL_C_CHAR:
 			dst := (*C.char)(TargetValuePtr)
@@ -513,14 +587,43 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 			*StrLen_or_IndPtr = C.long(len(value))
 		case C.SQL_C_WCHAR:
 			src := utf8stringToUTF16(value)
-			//dst := (*C.int16_t)(TargetValuePtr)
-			//dst := unsafe.Pointer((TargetValuePtr))
-			//fmt.Printf("WWQQEE: %+q, %d", src, len(*src))
 			C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.ulong(len(*src)*2))
 			*StrLen_or_IndPtr = C.long(len(*src) * 2)
 		}
+	case bool:
+		switch TargetType {
+		case C.SQL_C_SLONG:
+			if value {
+				*(*C.int32_t)(TargetValuePtr) = 1
+			} else {
+				*(*C.int32_t)(TargetValuePtr) = 0
+			}
+			*StrLen_or_IndPtr = 4
+		case C.SQL_C_CHAR:
+			value := fmt.Sprintf("%t", value)
+			dst := (*C.char)(TargetValuePtr)
+			src := C.CString(value)
+			defer C.free(unsafe.Pointer(src))
+			C.strncpy(dst, src, C.ulong(BufferLength))
+			*StrLen_or_IndPtr = C.long(len(value))
+		default:
+			*StrLen_or_IndPtr = C.SQL_NULL_DATA
+		}
+	case float64:
+		switch TargetType {
+		case C.SQL_C_CHAR:
+			value := fmt.Sprintf("%g", value)
+			dst := (*C.char)(TargetValuePtr)
+			src := C.CString(value)
+			defer C.free(unsafe.Pointer(src))
+			C.strncpy(dst, src, C.ulong(BufferLength))
+			*StrLen_or_IndPtr = C.long(len(value))
+		default:
+			*StrLen_or_IndPtr = C.SQL_NULL_DATA
+		}
 	case nil:
-		//fmt.Printf("  nil\n")
+		*StrLen_or_IndPtr = C.SQL_NULL_DATA
+	default:
 		*StrLen_or_IndPtr = C.SQL_NULL_DATA
 	}
 }
@@ -531,10 +634,38 @@ func SQLGetData(StatementHandle C.SQLHSTMT, Col_or_Param_Num C.SQLUSMALLINT, Tar
 
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
-	fmt.Printf("%d\n", Col_or_Param_Num-1)
+	//value := s.data[s.index][Col_or_Param_Num-1]
+	//fmt.Printf("%d %v %T\n", Col_or_Param_Num-1, value, value)
 
 	populateData(s.data[s.index][Col_or_Param_Num-1], TargetType, TargetValuePtr, BufferLength, StrLen_or_IndPtr)
 
+	return C.SQL_SUCCESS
+
+}
+
+//export SQLColAttribute
+func SQLColAttribute(
+	StatementHandle C.SQLHSTMT,
+	ColumnNumber C.SQLUSMALLINT,
+	FieldIdentifier C.SQLUSMALLINT,
+	CharacterAttributePtr C.SQLPOINTER,
+	BufferLength C.SQLSMALLINT,
+	StringLengthPtr *C.SQLSMALLINT,
+	NumericAttributePtr *C.SQLLEN) C.SQLRETURN {
+
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+
+	col := s.def[ColumnNumber-1]
+
+	switch FieldIdentifier {
+	case C.SQL_DESC_LABEL:
+		copyGoStringToCString((*C.uchar)(CharacterAttributePtr), col.name, len(col.name))
+		//*StringLengthPtr = C.short(len(col.name))
+	default:
+		if StringLengthPtr != nil {
+			*StringLengthPtr = 0
+		}
+	}
 	return C.SQL_SUCCESS
 
 }
