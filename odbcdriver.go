@@ -7,6 +7,7 @@ import (
 	"runtime/cgo"
 	"sort"
 	"strconv"
+	"strings"
 	"unicode/utf16"
 	"unsafe"
 )
@@ -104,10 +105,20 @@ func SQLDriverConnect(
 	StringLength2Ptr *C.SQLSMALLINT,
 	DriverCompletion C.SQLUSMALLINT) C.SQLRETURN {
 
-	fmt.Printf("SQLGSQLDriverConnectetInfo %q\n", InConnectionString)
+	inConnectionString := toGoString(InConnectionString, StringLength1)
+	fmt.Printf("SQLGSQLDriverConnectetInfo %+q\n", inConnectionString)
 
+	args := make(map[string]string)
+	for _, arg := range strings.Split(inConnectionString, ";") {
+		sarg := strings.SplitN(arg, "=", 2)
+		if len(sarg) == 1 {
+			args[strings.ToLower(sarg[0])] = ""
+		} else {
+			args[strings.ToLower(sarg[0])] = sarg[1]
+		}
+	}
 	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
-	connHandle.initConnection("xxx") // FIXME
+	connHandle.initConnection(args["dsn"]) // FIXME
 
 	return C.SQL_SUCCESS
 }
@@ -698,14 +709,14 @@ func SQLFreeStmt(StatementHandle C.SQLHSTMT, Option C.SQLUSMALLINT) C.SQLRETURN 
 //export SQLGetInfo
 func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePtr C.SQLPOINTER,
 	BufferLength C.SQLSMALLINT, StringLengthPtr *C.SQLSMALLINT) C.SQLRETURN {
-	fmt.Printf("SQLGetInfo %q %q %v %q %v\n", ConnectionHandle, InfoType, InfoValuePtr, BufferLength, StringLengthPtr)
+	fmt.Printf("SQLGetInfo %v %d %v %q %v\n", ConnectionHandle, InfoType, InfoValuePtr, BufferLength, StringLengthPtr)
 	return C.SQL_SUCCESS
 
 }
 
 //export SQLDisconnect
 func SQLDisconnect(ConnectionHandle C.SQLHDBC) C.SQLRETURN {
-	fmt.Printf("SQLGetInfo %q\n", ConnectionHandle)
+	fmt.Printf("SQLGeSQLDisconnecttInfo %v\n", ConnectionHandle)
 	return C.SQL_SUCCESS
 }
 
