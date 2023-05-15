@@ -38,7 +38,6 @@ jobs:
           cp /usr/include/uodbc_extras.h $GITHUB_WORKSPACE/include
           cp /usr/include/uodbc_stats.h $GITHUB_WORKSPACE/include
 
-      -
       # - name: Test
       #   run: ./test.sh
 
