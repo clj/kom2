@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"runtime/cgo"
 	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf16"
 	"unsafe"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // #cgo LDFLAGS: -lodbcinst
@@ -20,6 +23,70 @@ import (
 // #include <sqlext.h>
 // #include <odbcinst.h>
 import "C"
+
+func Convert(value any, t string) (any, error) {
+
+	switch t {
+	case "int":
+	case "float":
+	case "string":
+	case "":
+		return value, nil
+	default:
+		return nil, fmt.Errorf("invalid destination type %s", t)
+
+	}
+
+	switch v := value.(type) {
+	case int64:
+		switch t {
+		case "int":
+			return v, nil
+		case "float":
+			return float64(v), nil
+		case "string":
+			return strconv.FormatInt(v, 10), nil
+		}
+	case float64:
+		switch t {
+		case "int":
+			return int64(v), nil
+		case "float":
+			return v, nil
+		case "string":
+			return strconv.FormatFloat(v, 'G', -1, 64), nil
+		}
+	case string:
+		switch t {
+		case "int":
+			return strconv.ParseInt(v, 0, 64)
+		case "float":
+			return strconv.ParseFloat(v, 64)
+		case "string":
+			return v, nil
+		}
+	case bool:
+		switch t {
+		case "int":
+			if v {
+				return 1, nil
+			}
+			return 0, nil
+		case "float":
+			if v {
+				return 1.0, nil
+			}
+			return 0.0, nil
+		case "string":
+			if v {
+				return "1", nil
+			}
+			return "0", nil
+		}
+	}
+
+	return nil, fmt.Errorf("unknown source type %T for value %v", value, value)
+}
 
 func SQLGetPrivateProfileString(section, entry, defaultValue, filename string) string {
 	cSection := C.CString(section)
@@ -171,10 +238,26 @@ type connectionHandle struct {
 		apiToken string
 	}
 	categoryMapping map[string]int
+	// This cache isn't ideal because it never expires. However, for KiCad
+	// I don't think it matters much, since KiCad will refresh its full list
+	// of parts before individual parts can be selected, which means this
+	// cache should be up to date with what parts can actually be selected.
+	ipnToPkMap map[string]any
 }
 
 func (c *connectionHandle) init(envHandle *environmentHandle) {
 	c.env = envHandle
+}
+
+func (c *connectionHandle) updateIpnToPkMap(parts *[]map[string]any) {
+	c.ipnToPkMap = make(map[string]any)
+
+	for _, part := range *parts {
+		pk := part["pk"]
+		ipn := part["IPN"].(string)
+
+		c.ipnToPkMap[ipn] = pk
+	}
 }
 
 func (c *connectionHandle) apiGet(resource string, args map[string]string, result any) error {
@@ -236,7 +319,109 @@ func (s *statementHandle) fetchAllParts(category string, parts *[]map[string]any
 	args := make(map[string]string)
 	args["category"] = strconv.Itoa(s.conn.categoryMapping[category])
 
+	fmt.Printf("args %+q\n", args)
+	fmt.Printf("map %+q\n", s.conn.categoryMapping)
+	fmt.Printf("cat %+q\n", category)
+
 	return s.conn.apiGet("/api/part/", args, parts)
+}
+
+func mangleParameters(params []map[string]any) map[string]any {
+	result := make(map[string]any)
+	for _, param := range params {
+		name := param["template_detail"].(map[string]any)["name"].(string)
+		data := param["data"].(string)
+
+		result[name] = data
+	}
+
+	return result
+}
+
+func (s *statementHandle) fetchPart(category string, column string, value any, parts *[]map[string]any) error {
+	var part map[string]any
+	var partMetadata map[string]any
+	var partParameters map[string]any
+
+	var pkValue any
+	switch column {
+	case "pk":
+		pkValue = value
+	case "IPN":
+		if s.conn.ipnToPkMap == nil {
+			var tmpParts []map[string]any
+			if err := s.fetchAllParts(category, &tmpParts); err != nil {
+				return err
+			}
+
+			s.conn.updateIpnToPkMap(&tmpParts)
+		}
+
+		var ok bool
+		if pkValue, ok = s.conn.ipnToPkMap[value.(string)]; !ok {
+			fmt.Printf("Boo %+v %+v", value, s.conn.ipnToPkMap)
+
+			return nil
+		}
+
+		// XXX: could optimise away the next fetch of parts, since we should already
+		//      have had the the required part returned when fetching all parts.
+		//      but this is not a path that should ever be hit when fetching from KiCad.
+		//      This is mostly to make running manual queries not annoying.
+
+	default:
+		panic(fmt.Sprintf("invalid filter column: %s", column))
+	}
+
+	getPart := func() error {
+		if err := s.conn.apiGet(fmt.Sprintf("/api/part/%v/", pkValue), nil, &part); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	g := new(errgroup.Group)
+
+	g.Go(getPart)
+
+	g.Go(func() error {
+		if err := s.conn.apiGet(fmt.Sprintf("/api/part/%v/metadata/", pkValue), nil, &partMetadata); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	g.Go(func() error {
+		var rawPartParameters []map[string]any
+		args := make(map[string]string)
+		value, _ := Convert(pkValue, "string") // maybe just sprintf?
+		args["part"] = value.(string)
+
+		if err := s.conn.apiGet("/api/part/parameter/", args, &rawPartParameters); err != nil {
+			return err
+		}
+
+		partParameters = mangleParameters(rawPartParameters)
+
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	// This should work for multiple levels
+	for key, metadata := range partMetadata {
+		part["metadata."+key] = metadata
+	}
+	for key, parameter := range partParameters {
+		part["parameter."+key] = parameter
+	}
+	*parts = append(*parts, part)
+
+	fmt.Printf("xxxxxXXXXX parts %+q\n", parts)
+	return nil
 }
 
 func (s *statementHandle) populateColDesc(data *[]map[string]any) {
@@ -286,6 +471,12 @@ type bind struct {
 	StrLen_or_IndPtr *C.SQLLEN
 }
 
+type param struct {
+	ValueType         C.SQLSMALLINT
+	ParameterValuePtr C.SQLPOINTER
+	BufferLength      C.SQLLEN
+}
+
 type desc struct {
 	name          string
 	dataType      C.short
@@ -294,6 +485,15 @@ type desc struct {
 	nullable      int
 }
 
+type cond struct {
+	column string
+	value  string
+}
+
+type stmt struct {
+	table     string
+	condition *cond
+}
 type statementHandle struct {
 	errorInfo
 
@@ -301,9 +501,11 @@ type statementHandle struct {
 	columnNames    []string
 	def            []*desc
 	binds          []*bind
+	params         []*param
 	data           [][]any
 	index          int
 	rowsFetchedPtr *C.SQLULEN
+	statement      *stmt
 }
 
 func (s *statementHandle) init(connHandle *connectionHandle) {
@@ -402,11 +604,71 @@ func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHan
 	return C.SQL_SUCCESS
 }
 
+func maybeUnquote(literal string) string {
+	literal = strings.TrimSpace(literal)
+
+	if len(literal) < 2 {
+		return literal
+	}
+
+	if literal[0] == '\'' && literal[len(literal)-1] == '\'' {
+		return strings.ReplaceAll(literal[1:len(literal)-1], "''", "'")
+	}
+
+	if literal[0] == '"' && literal[len(literal)-1] == '"' {
+		return strings.ReplaceAll(literal[1:len(literal)-1], "\"\"", "\"\"")
+	}
+
+	return literal
+}
+
+func splitSQL(sql string) []string {
+	// XXX Should support some form of escaping
+	r := regexp.MustCompile(`[^\s"']+|"([^"]*)"|'([^']*)`)
+
+	return r.FindAllString(sql, -1)
+}
+
 //export SQLPrepare
 func SQLPrepare(StatementHandle C.SQLHSTMT, StatementText *C.SQLCHAR, TextLength C.SQLINTEGER) C.SQLRETURN {
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+
 	statementText := toGoString(StatementText, TextLength)
 
 	fmt.Printf("StatementText: %s\n", statementText)
+
+	statementText = strings.TrimSpace(statementText)
+	statementText = strings.TrimRight(statementText, ";")
+	statementText = strings.TrimSpace(statementText)
+
+	statementParts := splitSQL(statementText)
+	if strings.ToUpper(statementParts[0]) != "SELECT" {
+		return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("SELECT expected, got: %s", statementParts[0])})
+	}
+	if strings.ToUpper(statementParts[1]) != "*" {
+		return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("* expected, got: %s", statementParts[1])})
+	}
+	if strings.ToUpper(statementParts[2]) != "FROM" {
+		return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("FROM expected, got: %s", statementParts[2])})
+	}
+	s.statement = &stmt{
+		table: maybeUnquote(statementParts[3]),
+	}
+	if len(statementParts) > 4 {
+		if strings.ToUpper(statementParts[4]) != "WHERE" {
+			fmt.Println("A")
+			return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("WHERE expected, got: %s", statementParts[4])})
+		}
+		if strings.ToUpper(statementParts[6]) != "=" {
+			fmt.Println("B")
+
+			return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("= expected, got: %s", statementParts[6])})
+		}
+		s.statement.condition = &cond{
+			column: maybeUnquote(statementParts[5]),
+			value:  maybeUnquote(statementParts[7]),
+		}
+	}
 
 	return C.SQL_SUCCESS
 }
@@ -416,13 +678,34 @@ func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	s.index = -1
 
-	var parts []map[string]any
-	s.fetchAllParts("Resistors", &parts)
-	s.populateColDesc(&parts)
-	s.data = make([][]any, 0, len(parts))
-	s.populateData(&parts)
-
-	fmt.Printf("XXX: %d %d", len(parts), len(s.data))
+	if s.statement.condition == nil {
+		var parts []map[string]any
+		s.fetchAllParts(s.statement.table, &parts)
+		s.populateColDesc(&parts)
+		s.data = make([][]any, 0, len(parts))
+		s.populateData(&parts)
+		s.conn.updateIpnToPkMap(&parts)
+	} else if s.statement.condition != nil {
+		var parts []map[string]any
+		fmt.Println("not nil")
+		var value any
+		if s.params == nil {
+			value = s.statement.condition.value
+		} else {
+			value = C.GoString((*C.char)(s.params[0].ParameterValuePtr))
+		}
+		fmt.Printf("value %s", value)
+		if err := s.fetchPart(s.statement.table, s.statement.condition.column, value, &parts); err != nil {
+			panic(err)
+		}
+		s.populateColDesc(&parts)
+		s.data = make([][]any, 0, len(parts))
+		s.populateData(&parts)
+		fmt.Printf("XXQ %+q", parts)
+	} else {
+		panic("uh?")
+	}
+	//fmt.Printf("XXX: %d %d", len(parts), len(s.data))
 	//fmt.Printf("XXX: %+q", s.data)
 	//fmt.Printf("XXX: %+q", s.columnNames)
 	//fmt.Printf("XXX: %+q", s.def)
@@ -834,6 +1117,59 @@ func SQLSetConnectAttr(
 	Attribute C.SQLINTEGER,
 	ValuePtr C.SQLPOINTER,
 	StringLength C.SQLINTEGER) C.SQLRETURN {
+
+	return C.SQL_SUCCESS
+}
+
+//export SQLDescribeParam
+func SQLDescribeParam(
+	StatementHandle C.SQLHSTMT,
+	ParameterNumber C.SQLUSMALLINT,
+	DataTypePtr *C.SQLSMALLINT,
+	ParameterSizePtr *C.SQLULEN,
+	DecimalDigitsPtr *C.SQLSMALLINT,
+	NullablePtr *C.SQLSMALLINT) C.SQLRETURN {
+
+	if ParameterNumber != 1 {
+		panic("ParameterNumber != 1")
+	}
+
+	*DataTypePtr = C.SQL_VARCHAR
+	*ParameterSizePtr = 0xfffffffc // C.SQL_NO_TOTAL = -4
+	*NullablePtr = C.SQL_NO_NULLS
+
+	return C.SQL_SUCCESS
+
+}
+
+//export SQLBindParameter
+func SQLBindParameter(
+	StatementHandle C.SQLHSTMT,
+	ParameterNumber C.SQLUSMALLINT,
+	InputOutputType C.SQLSMALLINT,
+	ValueType C.SQLSMALLINT,
+	ParameterType C.SQLSMALLINT,
+	ColumnSize C.SQLULEN,
+	DecimalDigits C.SQLSMALLINT,
+	ParameterValuePtr C.SQLPOINTER,
+	BufferLength C.SQLLEN,
+	StrLen_or_IndPtr *C.SQLLEN) C.SQLRETURN {
+
+	if InputOutputType != C.SQL_PARAM_INPUT {
+		panic("InputOutputType != C.SQL_PARAM_INPUT")
+	}
+	if ValueType != C.SQL_C_CHAR {
+		panic("ValueType != C.SQL_C_CHAR")
+	}
+
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+
+	param := param{
+		ValueType:         ValueType,
+		ParameterValuePtr: ParameterValuePtr,
+		BufferLength:      BufferLength,
+	}
+	s.params = append(s.params, &param)
 
 	return C.SQL_SUCCESS
 }
