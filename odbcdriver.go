@@ -297,12 +297,13 @@ type desc struct {
 type statementHandle struct {
 	errorInfo
 
-	conn        *connectionHandle
-	columnNames []string
-	def         []*desc
-	binds       []*bind
-	data        [][]any
-	index       int
+	conn           *connectionHandle
+	columnNames    []string
+	def            []*desc
+	binds          []*bind
+	data           [][]any
+	index          int
+	rowsFetchedPtr *C.SQLULEN
 }
 
 func (s *statementHandle) init(connHandle *connectionHandle) {
@@ -418,6 +419,7 @@ func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 	var parts []map[string]any
 	s.fetchAllParts("Resistors", &parts)
 	s.populateColDesc(&parts)
+	s.data = make([][]any, 0, len(parts))
 	s.populateData(&parts)
 
 	fmt.Printf("XXX: %d %d", len(parts), len(s.data))
@@ -445,9 +447,9 @@ func SQLFreeHandle(HandleType C.SQLSMALLINT, Handle C.SQLHANDLE) C.SQLRETURN {
 //export SQLTables
 func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C.SQLSMALLINT, SchemaName *C.SQLCHAR, NameLength2 C.SQLSMALLINT, TableName *C.SQLCHAR, NameLength3 C.SQLSMALLINT, TableType *C.SQLCHAR, NameLength4 C.SQLSMALLINT) C.SQLRETURN {
 	catalogName := toGoString(CatalogName, NameLength1)
-	schemaName := toGoString(SchemaName, NameLength1)
-	tableName := toGoString(TableName, NameLength1)
-	tableType := toGoString(TableType, NameLength1)
+	schemaName := toGoString(SchemaName, NameLength2)
+	tableName := toGoString(TableName, NameLength3)
+	tableType := toGoString(TableType, NameLength4)
 
 	fmt.Printf("SQLTables %q  %q %q  %q\n", catalogName, schemaName, tableName, tableType)
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
@@ -460,9 +462,76 @@ func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C
 		{name: "REMARKS", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
 	}
 	categories := s.conn.categoryMapping
+	s.index = -1
+	s.data = make([][]any, 0, len(categories))
 	for name, _ := range categories {
 		s.data = append(s.data, []any{nil, nil, name, "TABLE", nil})
 	}
+
+	return C.SQL_SUCCESS
+}
+
+func rowFromMap(def []*desc, data map[string]any) []any {
+	row := make([]any, len(def))
+	for idx, col := range def {
+		if value, ok := data[col.name]; ok {
+			row[idx] = value
+		}
+	}
+
+	return row
+}
+
+//export SQLColumns
+func SQLColumns(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C.SQLSMALLINT, SchemaName *C.SQLCHAR, NameLength2 C.SQLSMALLINT, TableName *C.SQLCHAR, NameLength3 C.SQLSMALLINT, ColumnName *C.SQLCHAR, NameLength4 C.SQLSMALLINT) C.SQLRETURN {
+	catalogName := toGoString(CatalogName, NameLength1)
+	schemaName := toGoString(SchemaName, NameLength2)
+	tableName := toGoString(TableName, NameLength3)
+	columnName := toGoString(ColumnName, NameLength4)
+
+	fmt.Printf("SQLTables %q  %q %q  %q\n", catalogName, schemaName, tableName, columnName)
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+
+	s.def = []*desc{
+		{name: "TABLE_CAT", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
+		{name: "TABLE_SCHEM", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
+		{name: "TABLE_NAME", dataType: C.SQL_VARCHAR, nullable: C.SQL_NO_NULLS},
+		{name: "COLUMN_NAME", dataType: C.SQL_VARCHAR, nullable: C.SQL_NO_NULLS},
+		{name: "DATA_TYPE", dataType: C.SQL_SMALLINT, nullable: C.SQL_NO_NULLS},
+		{name: "TYPE_NAME", dataType: C.SQL_VARCHAR, nullable: C.SQL_NO_NULLS},
+		{name: "COLUMN_SIZE", dataType: C.SQL_INTEGER, nullable: C.SQL_NULLABLE},
+		{name: "BUFFER_LENGTH", dataType: C.SQL_INTEGER, nullable: C.SQL_NULLABLE},
+		{name: "DECIMAL_DIGITS", dataType: C.SQL_SMALLINT, nullable: C.SQL_NULLABLE},
+		{name: "NUM_PREC_RADIX ", dataType: C.SQL_SMALLINT, nullable: C.SQL_NULLABLE},
+		{name: "NULLABLE", dataType: C.SQL_SMALLINT, nullable: C.SQL_NO_NULLS},
+		{name: "REMARKS", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
+		{name: "COLUMN_DEF", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
+		{name: "SQL_DATA_TYPE", dataType: C.SQL_SMALLINT, nullable: C.SQL_NO_NULLS},
+		{name: "SQL_DATETIME_SUB", dataType: C.SQL_SMALLINT, nullable: C.SQL_NULLABLE},
+		{name: "CHAR_OCTET_LENGTH", dataType: C.SQL_INTEGER, nullable: C.SQL_NULLABLE},
+		{name: "ORDINAL_POSITION", dataType: C.SQL_INTEGER, nullable: C.SQL_NO_NULLS},
+		{name: "IS_NULLABLE", dataType: C.SQL_VARCHAR, nullable: C.SQL_NO_NULLS},
+	}
+	s.index = -1
+	s.data = make([][]any, 0, 2)
+	s.data = append(s.data, rowFromMap(s.def, map[string]any{
+		"TABLE_NAME":    tableName,
+		"COLUMN_NAME":   "IPN",
+		"DATA_TYPE":     "SQL_VARCHAR",
+		"TYPE_NAME":     "VARCHAR",
+		"NULLABLE":      C.SQL_NO_NULLS,
+		"SQL_DATA_TYPE": C.SQL_VARCHAR,
+		"IS_NULLABLE":   "NO",
+	}))
+	s.data = append(s.data, rowFromMap(s.def, map[string]any{
+		"TABLE_NAME":    tableName,
+		"COLUMN_NAME":   "pk",
+		"DATA_TYPE":     "SQL_VARCHAR",
+		"TYPE_NAME":     "VARCHAR",
+		"NULLABLE":      C.SQL_NO_NULLS,
+		"SQL_DATA_TYPE": C.SQL_VARCHAR,
+		"IS_NULLABLE":   "NO",
+	}))
 
 	return C.SQL_SUCCESS
 }
@@ -471,8 +540,32 @@ func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C
 func SQLSetStmtAttr(StatementHandle C.SQLHSTMT, Attribute C.SQLINTEGER, ValuePtr C.SQLPOINTER, StringLength C.SQLINTEGER) C.SQLRETURN {
 	fmt.Printf("SQLSetStmtAttr %q  %q %q  %q\n", StatementHandle, Attribute, ValuePtr, StringLength)
 
-	return C.SQL_SUCCESS
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
+	switch Attribute {
+	case C.SQL_ATTR_ROW_ARRAY_SIZE:
+		if uintptr(ValuePtr) != 1 {
+			// XXX set error
+			return C.SQL_ERROR
+		}
+		return C.SQL_SUCCESS
+	case C.SQL_ATTR_ROWS_FETCHED_PTR:
+		s.rowsFetchedPtr = (*C.SQLULEN)(ValuePtr)
+		return C.SQL_SUCCESS
+	case C.SQL_ATTR_CURSOR_TYPE:
+		if uintptr(ValuePtr) != 1 {
+			// XXX set error
+			return C.SQL_ERROR
+		}
+		return C.SQL_SUCCESS
+	case C.SQL_ATTR_PARAMSET_SIZE:
+		if uintptr(ValuePtr) != 1 {
+			// XXX set error
+			return C.SQL_ERROR
+		}
+		return C.SQL_SUCCESS
+	}
+	return C.SQL_ERROR
 }
 
 //export SQLDescribeCol
@@ -521,13 +614,13 @@ func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetT
 
 //export SQLFetchScroll
 func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, FetchOffset C.SQLLEN) C.SQLRETURN {
-	fmt.Printf("SQLFetchScroll %q  %q %q\n", StatementHandle, FetchOrientation, FetchOffset)
+	fmt.Printf("SQLFetchScroll %v  %v %v\n", StatementHandle, FetchOrientation, FetchOffset)
 
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	s.index = s.index + 1
 
-	//fmt.Printf("  index %q\n", s.index)
-	//fmt.Printf("  data len %q\n", len(s.data))
+	fmt.Printf("  index %v\n", s.index)
+	fmt.Printf("  data len %v\n", len(s.data))
 
 	if s.index >= len(s.data) {
 		return C.SQL_NO_DATA
@@ -537,6 +630,9 @@ func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, 
 		s.populateBinds()
 	}
 
+	if s.rowsFetchedPtr != nil {
+		*s.rowsFetchedPtr = 1
+	}
 	return C.SQL_SUCCESS
 }
 
@@ -556,6 +652,10 @@ func SQLFetch(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 
 	if s.binds != nil {
 		s.populateBinds()
+	}
+
+	if s.rowsFetchedPtr != nil {
+		*s.rowsFetchedPtr = 1
 	}
 
 	return C.SQL_SUCCESS
@@ -591,14 +691,18 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 	case string:
 		switch TargetType {
 		case C.SQL_C_CHAR:
-			dst := (*C.char)(TargetValuePtr)
-			src := C.CString(value)
-			defer C.free(unsafe.Pointer(src))
-			C.strncpy(dst, src, C.ulong(BufferLength))
+			if TargetValuePtr != nil {
+				dst := (*C.char)(TargetValuePtr)
+				src := C.CString(value)
+				defer C.free(unsafe.Pointer(src))
+				C.strncpy(dst, src, C.ulong(BufferLength))
+			}
 			*StrLen_or_IndPtr = C.long(len(value))
 		case C.SQL_C_WCHAR:
 			src := utf8stringToUTF16(value)
-			C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.ulong(len(*src)*2))
+			if TargetValuePtr != nil {
+				C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.ulong(len(*src)*2))
+			}
 			*StrLen_or_IndPtr = C.long(len(*src) * 2)
 		}
 	case bool:
@@ -612,10 +716,12 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 			*StrLen_or_IndPtr = 4
 		case C.SQL_C_CHAR:
 			value := fmt.Sprintf("%t", value)
-			dst := (*C.char)(TargetValuePtr)
-			src := C.CString(value)
-			defer C.free(unsafe.Pointer(src))
-			C.strncpy(dst, src, C.ulong(BufferLength))
+			if TargetValuePtr != nil {
+				dst := (*C.char)(TargetValuePtr)
+				src := C.CString(value)
+				defer C.free(unsafe.Pointer(src))
+				C.strncpy(dst, src, C.ulong(BufferLength))
+			}
 			*StrLen_or_IndPtr = C.long(len(value))
 		default:
 			*StrLen_or_IndPtr = C.SQL_NULL_DATA
@@ -624,10 +730,12 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 		switch TargetType {
 		case C.SQL_C_CHAR:
 			value := fmt.Sprintf("%g", value)
-			dst := (*C.char)(TargetValuePtr)
-			src := C.CString(value)
-			defer C.free(unsafe.Pointer(src))
-			C.strncpy(dst, src, C.ulong(BufferLength))
+			if TargetValuePtr != nil {
+				dst := (*C.char)(TargetValuePtr)
+				src := C.CString(value)
+				defer C.free(unsafe.Pointer(src))
+				C.strncpy(dst, src, C.ulong(BufferLength))
+			}
 			*StrLen_or_IndPtr = C.long(len(value))
 		default:
 			*StrLen_or_IndPtr = C.SQL_NULL_DATA
