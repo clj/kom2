@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"regexp"
 	"runtime/cgo"
 	"sort"
@@ -411,9 +412,38 @@ func (s *statementHandle) fetchPart(category string, column string, value any, p
 		return err
 	}
 
+	var flatten func(string, map[string]any)
+	flatten = func(path string, data map[string]any) {
+		for key, value := range data {
+			if path == "" {
+				key = key
+			} else {
+				key = path + "." + key
+			}
+			fmt.Printf("%s: %v\n", key, value)
+			if value == nil {
+				part[key] = value // ???
+				continue
+			}
+			fmt.Printf("%s\n", reflect.TypeOf(value).Kind().String())
+
+			switch reflect.TypeOf(value).Kind().String() {
+			case "array":
+				continue
+			case "map":
+				flatten(key, value.(map[string]any))
+			default:
+				part[key] = value
+			}
+		}
+	}
 	// This should work for multiple levels
-	for key, metadata := range partMetadata {
-		part["metadata."+key] = metadata
+	// for key, metadata := range partMetadata {
+	// 	part["metadata."+key] = metadata
+	// }
+	if partMetadata != nil {
+		fmt.Printf("%+v\n", partMetadata)
+		flatten("", partMetadata)
 	}
 	for key, parameter := range partParameters {
 		part["parameter."+key] = parameter
