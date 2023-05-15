@@ -25,6 +25,20 @@ jobs:
         run: |
           go get .
 
+      - name: Copy unixodbc include files
+        run: |
+          mkdir $GITHUB_WORKSPACE/include
+          cp /usr/include/odbcinst.h $GITHUB_WORKSPACE/include
+          cp /usr/include/odbcinstext.h $GITHUB_WORKSPACE/include
+          cp /usr/include/sql.h $GITHUB_WORKSPACE/include
+          cp /usr/include/sqlext.h $GITHUB_WORKSPACE/include
+          cp /usr/include/sqlspi.h $GITHUB_WORKSPACE/include
+          cp /usr/include/sqltypes.h $GITHUB_WORKSPACE/include
+          cp /usr/include/sqlucode.h $GITHUB_WORKSPACE/include
+          cp /usr/include/uodbc_extras.h $GITHUB_WORKSPACE/include
+          cp /usr/include/uodbc_stats.h $GITHUB_WORKSPACE/include
+
+      -
       # - name: Test
       #   run: ./test.sh
 
@@ -51,6 +65,7 @@ jobs:
           ldflags: -s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}
           buildmode: c-shared
           trimpath: true
+          tags: xgo
 
       - name: Package
         run: ./package.sh build/ ${{ env.release_name }}
