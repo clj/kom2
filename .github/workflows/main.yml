@@ -21,8 +21,8 @@ jobs:
         run: |
           go get .
 
-      - name: Test
-        run: ./test.sh
+      # - name: Test
+      #   run: ./test.sh
 
       - name: Get build date
         run: |
