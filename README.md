@@ -4,9 +4,10 @@ ODBC to InvenTree prototype driver for KiCad.
 
 See also: https://github.com/clj/kom for a previous prototype that uses SQLite virtual tables
 
-## Example config
+### KiCad Configuration
 
-inventree.kicad_dbl:
+Create a `inventree.kicad_dbl` file with a valid configuration (see the [KiCad documentation on Database Libraries](https://docs.kicad.org/master/en/eeschema/eeschema.html#database-libraries)), e.g.:
+
 ```json
 {
     "meta": {
@@ -61,6 +62,19 @@ inventree.kicad_dbl:
 
 The InvenTree Demo servier does not seem to have IPNs for everything though, so the key should probably be `pk` instead if that is the case (i.e. if IPN isn't unique).
 
+### Add the library to KiCad:
+
+* *Preferences* -> *Manage Symbol Libraries...*
+* Switch to the:
+    * *Global Libraries*; or
+    * *Project Specific Libraries*
+* Add a new library
+* Give it an appropriate *Nickname*
+* Set the *Library Path* to point to the `inventree.kicad_dbl` that you created earlier
+* Set the *Library Format* to *Database*
+
+You can now open the Schematic Editor and add a new component. The configured library should now be available.
+
 ## Interactive Use
 
 You can query InvenTree using `isql` by using a connection string:
@@ -88,3 +102,9 @@ select * from Electronics/Passives/Resistors where IPN = ???;
 ```
 
 if there were IPNs in the DB.
+
+## License
+
+MIT License Copyright (c) 2023 Christian Lyder Jacobsen
+
+Refer to [LICENSE](./LICENSE) for full text.
