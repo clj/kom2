@@ -1,3 +1,5 @@
+//go:build odbcinst
+
 package main
 
 // #cgo LDFLAGS: -lodbcinst
