@@ -63,7 +63,8 @@ jobs:
           go_version: 1.20.3
           dest: build
           prefix: kom2
-          targets: darwin/amd64,darwin/arm64,linux/amd64,linux/arm64,windows/amd64
+          #targets: darwin/amd64,darwin/arm64,linux/amd64,linux/arm64,windows/amd64
+          targets: linux/amd64
           v: true
           x: false
           race: false
@@ -71,7 +72,7 @@ jobs:
           buildmode: c-shared
           trimpath: true
           tags: xgo
-          deps: https://www.unixodbc.org/unixODBC-2.3.11.tar.gz
+          deps: https://ftp.gnu.org/gnu/automake/automake-1.16.tar.gz https://www.unixodbc.org/unixODBC-2.3.11.tar.gz
 
       - name: Package
         run: ./package.sh build/ ${{ env.release_name }}
