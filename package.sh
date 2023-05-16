@@ -4,7 +4,7 @@ src=$1
 version=$2
 
 cd $src
-for lib in kom-*; do
+for lib in kom2-*; do
     ext=${lib##*.}
     filename=${lib%%.*}
     filename=${filename/darwin/macos}
