@@ -4,6 +4,26 @@ ODBC to InvenTree prototype driver for KiCad.
 
 See also: https://github.com/clj/kom for a previous prototype that uses SQLite virtual tables
 
+## Installing
+
+### macOS
+
+Install [unixODBC](https://www.unixodbc.org)
+
+```shell
+$ brew install unixodbc
+```
+
+
+Download the latest kicad-odbc-middleware2 release from [Releases](https://github.com/clj/kom2/releases):
+
+* For Intel based Macs:
+    * kicad-odbc-middleware-**macos**-**amd64**-VERSION.zip
+* For Apple Silicon (ARM) Macs:
+    * kicad-odbc-middleware-**macos**-**arm64**-VERSION.zip
+
+decompress it and leave the kom2.dylib file somewhere convenient.
+
 ### KiCad Configuration
 
 Create a `inventree.kicad_dbl` file with a valid configuration (see the [KiCad documentation on Database Libraries](https://docs.kicad.org/master/en/eeschema/eeschema.html#database-libraries)), e.g.:
