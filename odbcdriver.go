@@ -16,13 +16,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// #cgo LDFLAGS: -lodbcinst
 // #include <stdlib.h>
 // #include <string.h>
 // #include <sqltypes.h>
 // #include <sql.h>
 // #include <sqlext.h>
-// #include <odbcinst.h>
 import "C"
 
 func Convert(value any, t string) (any, error) {
@@ -87,24 +85,6 @@ func Convert(value any, t string) (any, error) {
 	}
 
 	return nil, fmt.Errorf("unknown source type %T for value %v", value, value)
-}
-
-func SQLGetPrivateProfileString(section, entry, defaultValue, filename string) string {
-	cSection := C.CString(section)
-	defer C.free(unsafe.Pointer(cSection))
-	cEntry := C.CString(entry)
-	defer C.free(unsafe.Pointer(cEntry))
-	cDefaultValue := C.CString(defaultValue)
-	defer C.free(unsafe.Pointer(cDefaultValue))
-	cFilename := C.CString(filename)
-	defer C.free(unsafe.Pointer(cFilename))
-
-	buffer := (*C.char)(C.malloc(C.SQL_MAX_MESSAGE_LENGTH))
-	defer C.free(unsafe.Pointer(buffer))
-
-	C.SQLGetPrivateProfileString(cSection, cEntry, cDefaultValue, buffer, C.SQL_MAX_MESSAGE_LENGTH, cFilename)
-
-	return C.GoString(buffer)
 }
 
 func toGoString[T C.int | C.short](str *C.SQLCHAR, len T) string {
