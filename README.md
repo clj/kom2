@@ -14,7 +14,6 @@ Install [unixODBC](https://www.unixodbc.org)
 $ brew install unixodbc
 ```
 
-
 Download the latest kicad-odbc-middleware2 release from [Releases](https://github.com/clj/kom2/releases):
 
 * For Intel based Macs:
@@ -23,6 +22,14 @@ Download the latest kicad-odbc-middleware2 release from [Releases](https://githu
     * kicad-odbc-middleware-**macos**-**arm64**-VERSION.zip
 
 decompress it and leave the kom2.dylib file somewhere convenient.
+
+### Linux
+
+Contributions welcome.
+
+### Windows
+
+Contributions welcome. Binary builds for Windows are currently also broken.
 
 ### KiCad Configuration
 
@@ -103,7 +110,7 @@ You can query InvenTree using `isql` by using a connection string:
 isql -v -k "Driver=/.../kom2.dylib;username=reader;password=readonly;server=https://demo.inventree.org"
 ```
 
-    and run things like:
+and run things like:
 
 ```
 select * from Electronics/Passives/Resistors
