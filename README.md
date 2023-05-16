@@ -59,13 +59,8 @@ inventree.kicad_dbl
 }
 ```
 
-~/.odbc.ini
+## Interactive Use
 
-```ini
-[kom2]
-Driver=kom2.dylib
-Description=Kom2 test
-Server=https://...
-UID=my_username
-PASSWORD=API_KEY
-```
+You can query InvenTree using `isql` by using a connection string:
+
+    isql -v -k "..."

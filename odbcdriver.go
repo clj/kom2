@@ -1000,9 +1000,9 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 		switch TargetType {
 		case C.SQL_C_SLONG:
 			if value {
-				*(*C.int32_t)(TargetValuePtr) = 1
+				*(*C.long)(TargetValuePtr) = 1
 			} else {
-				*(*C.int32_t)(TargetValuePtr) = 0
+				*(*C.long)(TargetValuePtr) = 0
 			}
 			*StrLen_or_IndPtr = 4
 		case C.SQL_C_CHAR:
