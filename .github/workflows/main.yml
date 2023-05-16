@@ -72,7 +72,7 @@ jobs:
           buildmode: c-shared
           trimpath: true
           tags: xgo
-          deps: https://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz https://ftp.gnu.org/gnu/automake/automake-1.16.tar.gz https://www.unixodbc.org/unixODBC-2.3.11.tar.gz
+          deps: https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.gz https://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz https://ftp.gnu.org/gnu/automake/automake-1.16.tar.gz https://www.unixodbc.org/unixODBC-2.3.11.tar.gz
 
       - name: Package
         run: ./package.sh build/ ${{ env.release_name }}
