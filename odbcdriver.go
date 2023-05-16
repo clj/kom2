@@ -97,26 +97,66 @@ func toGoString[T C.int | C.short](str *C.SQLCHAR, len T) string {
 	return C.GoStringN((*C.char)(unsafe.Pointer(str)), C.int(len))
 }
 
-func (connHandle *connectionHandle) initConnection(dsn, username, password string) C.SQLRETURN {
-	connHandle.inventreeConfig.server = SQLGetPrivateProfileString(dsn, "server", "", ".odbc.ini")
-	connHandle.inventreeConfig.userName = SQLGetPrivateProfileString(dsn, "username", username, ".odbc.ini")
-	connHandle.inventreeConfig.password = SQLGetPrivateProfileString(dsn, "password", password, ".odbc.ini")
-	connHandle.inventreeConfig.apiToken = SQLGetPrivateProfileString(dsn, "apitoken", "", ".odbc.ini")
+func (connHandle *connectionHandle) initConnection(dsn, connectionString, userName, password string) C.SQLRETURN {
+
+	args := make(map[string]string)
+	for _, arg := range strings.Split(connectionString, ";") {
+		sarg := strings.SplitN(arg, "=", 2)
+		if len(sarg) == 1 {
+			args[strings.ToLower(sarg[0])] = ""
+		} else {
+			args[strings.ToLower(sarg[0])] = sarg[1]
+		}
+	}
+	conStrArg := func(arg, defaultValue string) string {
+		if value, ok := args[arg]; ok {
+			return value
+		}
+		return defaultValue
+	}
+
+	dsn = conStrArg("dsn", dsn)
+
+	// Config file is lowest priority
+	if dsn != "" {
+		connHandle.inventreeConfig.server = SQLGetPrivateProfileString(dsn, "server", "", ".odbc.ini")
+		connHandle.inventreeConfig.userName = SQLGetPrivateProfileString(dsn, "username", "", ".odbc.ini")
+		connHandle.inventreeConfig.password = SQLGetPrivateProfileString(dsn, "password", "", ".odbc.ini")
+		connHandle.inventreeConfig.apiToken = SQLGetPrivateProfileString(dsn, "apitoken", "", ".odbc.ini")
+	}
+
+	// Then connection string is higher
+	connHandle.inventreeConfig.server = conStrArg("server", connHandle.inventreeConfig.server)
+	connHandle.inventreeConfig.userName = conStrArg("username", connHandle.inventreeConfig.userName)
+	connHandle.inventreeConfig.password = conStrArg("password", connHandle.inventreeConfig.password)
+	connHandle.inventreeConfig.apiToken = conStrArg("apitoken", connHandle.inventreeConfig.apiToken)
+
+	// Then explicit username and password is highest
+	if userName != "" {
+		connHandle.inventreeConfig.userName = userName
+	}
+	if password != "" {
+		connHandle.inventreeConfig.password = password
+	}
 
 	if connHandle.inventreeConfig.server == "" {
-		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No server specified"})
+		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No Server specified"})
 	}
+	if connHandle.inventreeConfig.apiToken == "" && (connHandle.inventreeConfig.userName == "" || connHandle.inventreeConfig.password == "") {
+		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No APIToken or Username+Password specified"})
+	}
+
 	if connHandle.inventreeConfig.apiToken == "" {
-		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No API token (Password) specified"})
+		var token string
+		token, err := connHandle.getApiToken(connHandle.inventreeConfig.userName, connHandle.inventreeConfig.password) // why pass these?
+		if err != nil {
+			return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "Failed to fetch API Token", Err: err})
+		}
+		connHandle.inventreeConfig.apiToken = token
 	}
-
-	fmt.Println("WAHT???")
 	if err := connHandle.updateCategoryMapping(); err != nil {
-		fmt.Println("oh???")
-
 		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "Error updating category list", Err: err})
 	}
-	fmt.Printf("%+q\n", connHandle.categoryMapping)
 
 	return C.SQL_SUCCESS
 }
@@ -134,9 +174,7 @@ func SQLConnect(ConnectionHandle C.SQLHDBC,
 	password := toGoString(Authentication, NameLength3)
 
 	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
-	connHandle.initConnection(serverName, userName, password)
-
-	return C.SQL_SUCCESS
+	return connHandle.initConnection(serverName, "", userName, password)
 }
 
 //export SQLDriverConnect
@@ -153,19 +191,8 @@ func SQLDriverConnect(
 	inConnectionString := toGoString(InConnectionString, StringLength1)
 	fmt.Printf("SQLDriverConnect %+q\n", inConnectionString)
 
-	args := make(map[string]string)
-	for _, arg := range strings.Split(inConnectionString, ";") {
-		sarg := strings.SplitN(arg, "=", 2)
-		if len(sarg) == 1 {
-			args[strings.ToLower(sarg[0])] = ""
-		} else {
-			args[strings.ToLower(sarg[0])] = sarg[1]
-		}
-	}
 	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
-	connHandle.initConnection(args["dsn"], "", "")
-
-	return C.SQL_SUCCESS
+	return connHandle.initConnection("", inConnectionString, "", "")
 }
 
 type DriverError struct {
@@ -187,6 +214,10 @@ func SetAndReturnError(handle interface{}, err *DriverError) C.SQLRETURN {
 	switch h := handle.(type) {
 	case *connectionHandle:
 		h.errorInfo.errorInfo = err
+	case *statementHandle:
+		h.errorInfo.errorInfo = err
+	default:
+		panic("FIXME!")
 	}
 
 	return C.SQL_ERROR
@@ -232,11 +263,40 @@ func (c *connectionHandle) updateIpnToPkMap(parts *[]map[string]any) {
 	c.ipnToPkMap = make(map[string]any)
 
 	for _, part := range *parts {
+		if part["IPN"] == nil {
+			continue
+		}
 		pk := part["pk"]
 		ipn := part["IPN"].(string)
 
 		c.ipnToPkMap[ipn] = pk
 	}
+}
+
+func (c *connectionHandle) getApiToken(userName, password string) (string, error) {
+	request, err := http.NewRequest("GET", c.inventreeConfig.server+"/api/user/token", nil)
+	if err != nil {
+		return "", err
+	}
+	request.SetBasicAuth(userName, password)
+	response, err := c.env.httpClient.Do(request)
+	if err != nil {
+		return "", err
+	}
+	if response.StatusCode != 200 {
+		return "", fmt.Errorf("unexpected status code %s", response.Status)
+	}
+
+	type Token struct {
+		Token string `json:"token"`
+	}
+	decoder := json.NewDecoder(response.Body)
+	val := &Token{}
+	err = decoder.Decode(val)
+	if err != nil {
+		return "", err
+	}
+	return val.Token, nil
 }
 
 func (c *connectionHandle) apiGet(resource string, args map[string]string, result any) error {
@@ -296,7 +356,11 @@ func keys[K comparable, V any](m map[K]V) []K {
 
 func (s *statementHandle) fetchAllParts(category string, parts *[]map[string]any) error {
 	args := make(map[string]string)
-	args["category"] = strconv.Itoa(s.conn.categoryMapping[category])
+	categoryId, ok := s.conn.categoryMapping[category]
+	if !ok {
+		return &DriverError{SqlState: "HY000", Message: fmt.Sprintf("Category does not exist in InvenTree: %s", category)}
+	}
+	args["category"] = strconv.Itoa(categoryId)
 
 	fmt.Printf("args %+q\n", args)
 	fmt.Printf("map %+q\n", s.conn.categoryMapping)
@@ -572,9 +636,16 @@ func SQLGetDiagRec(
 		return C.SQL_NO_DATA
 	}
 
+	var message string
+	if errorInfo.Err != nil {
+		message = fmt.Sprintf("%s: %s", errorInfo.Message, errorInfo.Err)
+	} else {
+		message = errorInfo.Message
+	}
+
 	copyGoStringToCString(SQLState, errorInfo.SqlState, 5)
-	copyGoStringToCString(MessageText, errorInfo.Message, int(BufferLength))
-	*TextLengthPtr = C.short(len(errorInfo.Message))
+	copyGoStringToCString(MessageText, message, int(BufferLength))
+	*TextLengthPtr = C.short(len(message))
 
 	return C.SQL_SUCCESS
 }
