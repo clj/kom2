@@ -97,17 +97,11 @@ func toGoString[T C.int | C.short](str *C.SQLCHAR, len T) string {
 	return C.GoStringN((*C.char)(unsafe.Pointer(str)), C.int(len))
 }
 
-func (connHandle *connectionHandle) initConnection(dsn string) C.SQLRETURN {
-	// Todo: also pull from the DSN/serverName
+func (connHandle *connectionHandle) initConnection(dsn, username, password string) C.SQLRETURN {
 	connHandle.inventreeConfig.server = SQLGetPrivateProfileString(dsn, "server", "", ".odbc.ini")
-	connHandle.inventreeConfig.apiToken = SQLGetPrivateProfileString(dsn, "password", "", ".odbc.ini")
-
-	// if userName := toGoString(UserName, NameLength2); username != "" {
-	// 	connHandle.inventreeConfig.user = userName
-	// }
-	// if authentication := toGoString(Authentication, NameLength3); authentication != "" {
-	// 	connHandle.inventreeConfig.apiToken = authentication
-	// }
+	connHandle.inventreeConfig.userName = SQLGetPrivateProfileString(dsn, "username", username, ".odbc.ini")
+	connHandle.inventreeConfig.password = SQLGetPrivateProfileString(dsn, "password", password, ".odbc.ini")
+	connHandle.inventreeConfig.apiToken = SQLGetPrivateProfileString(dsn, "apitoken", "", ".odbc.ini")
 
 	if connHandle.inventreeConfig.server == "" {
 		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No server specified"})
@@ -133,11 +127,14 @@ func SQLConnect(ConnectionHandle C.SQLHDBC,
 	UserName *C.SQLCHAR, NameLength2 C.SQLSMALLINT,
 	Authentication *C.SQLCHAR, NameLength3 C.SQLSMALLINT) C.SQLRETURN {
 
-	fmt.Printf("%v %d %v %d %v %d\n", ServerName, NameLength1, UserName, NameLength2, Authentication, NameLength3)
+	fmt.Printf("SQLConnect %v %d %v %d %v %d\n", ServerName, NameLength1, UserName, NameLength2, Authentication, NameLength3)
 
 	serverName := toGoString(ServerName, NameLength1)
+	userName := toGoString(UserName, NameLength2)
+	password := toGoString(Authentication, NameLength3)
+
 	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
-	connHandle.initConnection(serverName)
+	connHandle.initConnection(serverName, userName, password)
 
 	return C.SQL_SUCCESS
 }
@@ -154,7 +151,7 @@ func SQLDriverConnect(
 	DriverCompletion C.SQLUSMALLINT) C.SQLRETURN {
 
 	inConnectionString := toGoString(InConnectionString, StringLength1)
-	fmt.Printf("SQLGSQLDriverConnectetInfo %+q\n", inConnectionString)
+	fmt.Printf("SQLDriverConnect %+q\n", inConnectionString)
 
 	args := make(map[string]string)
 	for _, arg := range strings.Split(inConnectionString, ";") {
@@ -166,7 +163,7 @@ func SQLDriverConnect(
 		}
 	}
 	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
-	connHandle.initConnection(args["dsn"]) // FIXME
+	connHandle.initConnection(args["dsn"], "", "")
 
 	return C.SQL_SUCCESS
 }
@@ -214,8 +211,9 @@ type connectionHandle struct {
 
 	env             *environmentHandle
 	inventreeConfig struct {
-		server string
-		//userName string
+		server   string
+		userName string
+		password string
 		apiToken string
 	}
 	categoryMapping map[string]int
