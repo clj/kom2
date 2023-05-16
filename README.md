@@ -17,9 +17,9 @@ $ brew install unixodbc
 Download the latest kicad-odbc-middleware2 release from [Releases](https://github.com/clj/kom2/releases):
 
 * For Intel based Macs:
-    * kicad-odbc-middleware-**macos**-**amd64**-VERSION.zip
+    * kicad-odbc-middleware2-**macos**-**amd64**-VERSION.zip
 * For Apple Silicon (ARM) Macs:
-    * kicad-odbc-middleware-**macos**-**arm64**-VERSION.zip
+    * kicad-odbc-middleware2-**macos**-**arm64**-VERSION.zip
 
 decompress it and leave the kom2.dylib file somewhere convenient.
 
