@@ -1064,7 +1064,7 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 		case C.SQL_C_WCHAR:
 			src := utf8stringToUTF16(value)
 			if TargetValuePtr != nil {
-				C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.ulong(len(*src)*2))
+				C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.size_t(len(*src)*2))
 			}
 			*StrLen_or_IndPtr = C.SQLLEN(len(*src) * 2)
 		}
