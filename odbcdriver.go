@@ -88,7 +88,7 @@ func Convert(value any, t string) (any, error) {
 	return nil, fmt.Errorf("unknown source type %T for value %v", value, value)
 }
 
-func toGoString[T C.int | C.short](str *C.SQLCHAR, len T) string {
+func toGoString[T C.int | C.short | C.long](str *C.SQLCHAR, len T) string {
 	if str == nil {
 		return ""
 	}
