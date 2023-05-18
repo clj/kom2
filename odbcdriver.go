@@ -1060,13 +1060,13 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 				defer C.free(unsafe.Pointer(src))
 				C.strncpy(dst, src, C.size_t(BufferLength))
 			}
-			*StrLen_or_IndPtr = C.long(len(value))
+			*StrLen_or_IndPtr = C.SQLLEN(len(value))
 		case C.SQL_C_WCHAR:
 			src := utf8stringToUTF16(value)
 			if TargetValuePtr != nil {
 				C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.ulong(len(*src)*2))
 			}
-			*StrLen_or_IndPtr = C.long(len(*src) * 2)
+			*StrLen_or_IndPtr = C.SQLLEN(len(*src) * 2)
 		}
 	case bool:
 		switch TargetType {
@@ -1085,7 +1085,7 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 				defer C.free(unsafe.Pointer(src))
 				C.strncpy(dst, src, C.size_t(BufferLength))
 			}
-			*StrLen_or_IndPtr = C.long(len(value))
+			*StrLen_or_IndPtr = C.SQLLEN(len(value))
 		default:
 			*StrLen_or_IndPtr = C.SQL_NULL_DATA
 		}
@@ -1099,7 +1099,7 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 				defer C.free(unsafe.Pointer(src))
 				C.strncpy(dst, src, C.size_t(BufferLength))
 			}
-			*StrLen_or_IndPtr = C.long(len(value))
+			*StrLen_or_IndPtr = C.SQLLEN(len(value))
 		default:
 			*StrLen_or_IndPtr = C.SQL_NULL_DATA
 		}
