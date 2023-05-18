@@ -1265,22 +1265,4 @@ func SQLBindParameter(
 	return C.SQL_SUCCESS
 }
 
-// SQLBindCol
-// SQLBindParameter
-// SQLCancel
-// SQLColumnsW
-// SQLConnectW
-// SQLDescribeColW
-// SQLDescribeParam
-// SQLDisconnect
-// SQLExecute
-// SQLFetchScroll
-// SQLFreeHandle
-// SQLFreeStmt
-// SQLGetInfoW
-// SQLNumResultCols
-// SQLPrepareW
-// SQLSetConnectAttr
 // SQLSetEnvAttr
-// SQLSetStmtAttr
-// SQLTablesW
