@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// #include <stdint.h>
 // #include <stdlib.h>
 // #include <string.h>
 // #include <sqltypes.h>
@@ -601,7 +602,7 @@ func (s *statementHandle) populateBinds() {
 func copyGoStringToCString(dst *C.uchar, src string, length int) {
 	cSrc := C.CString(src + "\x00")
 	defer C.free(unsafe.Pointer(cSrc))
-	C.strncpy((*C.char)(unsafe.Pointer(dst)), cSrc, C.ulong(length)+1) // + 1 because we add "\0"
+	C.strncpy((*C.char)(unsafe.Pointer(dst)), cSrc, C.size_t(length)+1) // + 1 because we add "\0"
 }
 
 //export SQLGetDiagRec
@@ -1057,7 +1058,7 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 				dst := (*C.char)(TargetValuePtr)
 				src := C.CString(value)
 				defer C.free(unsafe.Pointer(src))
-				C.strncpy(dst, src, C.ulong(BufferLength))
+				C.strncpy(dst, src, C.size_t(BufferLength))
 			}
 			*StrLen_or_IndPtr = C.long(len(value))
 		case C.SQL_C_WCHAR:
@@ -1082,7 +1083,7 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 				dst := (*C.char)(TargetValuePtr)
 				src := C.CString(value)
 				defer C.free(unsafe.Pointer(src))
-				C.strncpy(dst, src, C.ulong(BufferLength))
+				C.strncpy(dst, src, C.size_t(BufferLength))
 			}
 			*StrLen_or_IndPtr = C.long(len(value))
 		default:
@@ -1096,7 +1097,7 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 				dst := (*C.char)(TargetValuePtr)
 				src := C.CString(value)
 				defer C.free(unsafe.Pointer(src))
-				C.strncpy(dst, src, C.ulong(BufferLength))
+				C.strncpy(dst, src, C.size_t(BufferLength))
 			}
 			*StrLen_or_IndPtr = C.long(len(value))
 		default:
