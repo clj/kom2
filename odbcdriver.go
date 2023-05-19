@@ -143,6 +143,7 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 	if connHandle.inventreeConfig.server == "" {
 		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No Server specified"})
 	}
+	connHandle.inventreeConfig.server = strings.TrimSuffix(connHandle.inventreeConfig.server, "/")
 	if connHandle.inventreeConfig.apiToken == "" && (connHandle.inventreeConfig.userName == "" || connHandle.inventreeConfig.password == "") {
 		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "No APIToken or Username+Password specified"})
 	}
@@ -155,6 +156,7 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 		}
 		connHandle.inventreeConfig.apiToken = token
 	}
+
 	if err := connHandle.updateCategoryMapping(); err != nil {
 		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "Error updating category list", Err: err})
 	}
