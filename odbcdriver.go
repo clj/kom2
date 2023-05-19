@@ -480,10 +480,7 @@ func (s *statementHandle) fetchPart(category string, column string, value any, p
 			}
 		}
 	}
-	// This should work for multiple levels
-	// for key, metadata := range partMetadata {
-	// 	part["metadata."+key] = metadata
-	// }
+
 	if partMetadata != nil {
 		fmt.Printf("%+v\n", partMetadata)
 		flatten("", partMetadata)
@@ -589,10 +586,8 @@ func (s *statementHandle) init(connHandle *connectionHandle) {
 func (s *statementHandle) populateBinds() {
 	for idx, bind := range s.binds {
 		if bind == nil {
-			//fmt.Println("phhhhh\n")
 			continue
 		}
-		//fmt.Println("%d\n", idx)
 
 		value := s.data[s.index][idx]
 		populateData(value, bind.TargetType, bind.TargetValuePtr, bind.BufferLength, bind.StrLen_or_IndPtr)
