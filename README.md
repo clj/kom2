@@ -87,7 +87,18 @@ Create a `inventree.kicad_dbl` file with a valid configuration (see the [KiCad d
 }
 ```
 
-The InvenTree Demo servier does not seem to have IPNs for everything though, so the key should probably be `pk` instead if that is the case (i.e. if IPN isn't unique).
+The InvenTree Demo server does not seem to have IPNs for everything though, so the key should probably be `pk` instead if that is the case (i.e. if IPN isn't unique).
+
+#### Connection String Options
+
+* `username`
+    * InvenTree username
+* `password`
+    * InvenTree users's password (not required if the `apitoken` is used instead)
+* `server`
+    * The InvenTree server to connect to
+* `apitoken`
+    * The optional API token (not required if `username` and `password` is used instead)
 
 ### Add the library to KiCad:
 
