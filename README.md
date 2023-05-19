@@ -40,8 +40,8 @@ Create a `inventree.kicad_dbl` file with a valid configuration (see the [KiCad d
     "meta": {
         "version": 0
     },
-    "name": "Inventree Library",
-    "description": "Components pulled from Inventree",
+    "name": "InvenTree Library",
+    "description": "Components pulled from InvenTree",
     "source": {
         "type": "odbc",
         "connection_string": "Driver=/.../kom2.dylib;username=reader;password=readonly;server=https://demo.inventree.org",
