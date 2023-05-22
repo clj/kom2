@@ -13,6 +13,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"golang.org/x/exp/constraints"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -1056,6 +1057,13 @@ func targetTypeToString(TargetType C.SQLSMALLINT) string {
 	}
 }
 
+func min[T constraints.Ordered](a, b T) T {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func populateData(value any, TargetType C.SQLSMALLINT,
 	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN) {
 
@@ -1073,12 +1081,14 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 			*StrLen_or_IndPtr = C.SQLLEN(len(value))
 		case C.SQL_C_WCHAR:
 			src := utf8stringToUTF16(value)
+			length := min(C.SQLLEN(len(*src)*2), BufferLength)
 
+			//fmt.Printf("len*2: %d BufferLength: %d min: %d", len(*src)*2, BufferLength, length)
 			if len(*src) > 0 && TargetValuePtr != nil {
-				C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.size_t(len(*src)*2))
+				C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.size_t(length))
 			}
 
-			*StrLen_or_IndPtr = C.SQLLEN(len(*src) * 2)
+			*StrLen_or_IndPtr = C.SQLLEN(length)
 		}
 	case bool:
 		switch TargetType {
