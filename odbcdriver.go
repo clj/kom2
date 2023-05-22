@@ -171,8 +171,6 @@ func SQLConnect(ConnectionHandle C.SQLHDBC,
 	UserName *C.SQLCHAR, NameLength2 C.SQLSMALLINT,
 	Authentication *C.SQLCHAR, NameLength3 C.SQLSMALLINT) C.SQLRETURN {
 
-	fmt.Printf("SQLConnect %v %d %v %d %v %d\n", ServerName, NameLength1, UserName, NameLength2, Authentication, NameLength3)
-
 	serverName := toGoString(ServerName, NameLength1)
 	userName := toGoString(UserName, NameLength2)
 	password := toGoString(Authentication, NameLength3)
@@ -193,7 +191,6 @@ func SQLDriverConnect(
 	DriverCompletion C.SQLUSMALLINT) C.SQLRETURN {
 
 	inConnectionString := toGoString(InConnectionString, StringLength1)
-	fmt.Printf("SQLDriverConnect %+q\n", inConnectionString)
 
 	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
 	return connHandle.initConnection("", inConnectionString, "", "")
@@ -368,10 +365,6 @@ func (s *statementHandle) fetchAllParts(category string, parts *[]map[string]any
 	}
 	args["category"] = strconv.Itoa(categoryId)
 
-	fmt.Printf("args %+q\n", args)
-	fmt.Printf("map %+q\n", s.conn.categoryMapping)
-	fmt.Printf("cat %+q\n", category)
-
 	return s.conn.apiGet("/api/part/", args, parts)
 }
 
@@ -408,8 +401,6 @@ func (s *statementHandle) fetchPart(category string, column string, value any, p
 
 		var ok bool
 		if pkValue, ok = s.conn.ipnToPkMap[value.(string)]; !ok {
-			fmt.Printf("Boo %+v %+v", value, s.conn.ipnToPkMap)
-
 			return nil
 		}
 
@@ -468,12 +459,11 @@ func (s *statementHandle) fetchPart(category string, column string, value any, p
 			} else {
 				key = path + "." + key
 			}
-			fmt.Printf("%s: %v\n", key, value)
+
 			if value == nil {
 				part[key] = value // ???
 				continue
 			}
-			fmt.Printf("%s\n", reflect.TypeOf(value).Kind().String())
 
 			switch reflect.TypeOf(value).Kind().String() {
 			case "array":
@@ -487,7 +477,6 @@ func (s *statementHandle) fetchPart(category string, column string, value any, p
 	}
 
 	if partMetadata != nil {
-		fmt.Printf("%+v\n", partMetadata)
 		flatten("", partMetadata)
 	}
 	for key, parameter := range partParameters {
@@ -495,7 +484,6 @@ func (s *statementHandle) fetchPart(category string, column string, value any, p
 	}
 	*parts = append(*parts, part)
 
-	fmt.Printf("xxxxxXXXXX parts %+q\n", parts)
 	return nil
 }
 
@@ -653,14 +641,11 @@ func SQLGetDiagRec(
 
 //export SQLAllocHandle
 func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHandlePtr *C.SQLHANDLE) C.SQLRETURN {
-	fmt.Printf("SQLAllocHandle(%d)\n", HandleType)
 	switch HandleType {
 	case C.SQL_HANDLE_ENV:
 		envHandle := environmentHandle{}
 		envHandle.init()
 		handle := cgo.NewHandle(&envHandle)
-		fmt.Printf("SQLAllocHandle(SQL_HANDLE_ENV)\n")
-		fmt.Printf("   envHandle: %+v, handle: %d\n", envHandle, handle)
 		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
 	case C.SQL_HANDLE_DBC:
 		envHandle := cgo.Handle(InputHandle).Value().(*environmentHandle)
@@ -668,15 +653,11 @@ func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHan
 		connHandle.init(envHandle)
 		handle := cgo.NewHandle(&connHandle)
 		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
-		fmt.Printf("SQLAllocHandle(SQL_HANDLE_DBC)\n")
-		fmt.Printf("   envHandle: %+v, handle: %d\n", envHandle, handle)
 	case C.SQL_HANDLE_STMT:
 		connHandle := cgo.Handle(InputHandle).Value().(*connectionHandle)
 		stmtHandle := statementHandle{}
 		stmtHandle.init(connHandle)
 		handle := cgo.NewHandle(&stmtHandle)
-		fmt.Printf("SQLAllocHandle(SQL_HANDLE_STMT)\n")
-		fmt.Printf("   connHandle: %+v, handle: %d\n", connHandle, handle)
 		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
 	default:
 		return C.SQL_ERROR
@@ -715,8 +696,6 @@ func SQLPrepare(StatementHandle C.SQLHSTMT, StatementText *C.SQLCHAR, TextLength
 
 	statementText := toGoString(StatementText, TextLength)
 
-	fmt.Printf("StatementText: %s\n", statementText)
-
 	statementText = strings.TrimSpace(statementText)
 	statementText = strings.TrimRight(statementText, ";")
 	statementText = strings.TrimSpace(statementText)
@@ -736,12 +715,9 @@ func SQLPrepare(StatementHandle C.SQLHSTMT, StatementText *C.SQLCHAR, TextLength
 	}
 	if len(statementParts) > 4 {
 		if strings.ToUpper(statementParts[4]) != "WHERE" {
-			fmt.Println("A")
 			return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("WHERE expected, got: %s", statementParts[4])})
 		}
 		if strings.ToUpper(statementParts[6]) != "=" {
-			fmt.Println("B")
-
 			return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("= expected, got: %s", statementParts[6])})
 		}
 		s.statement.condition = &cond{
@@ -767,28 +743,21 @@ func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 		s.conn.updateIpnToPkMap(&parts)
 	} else if s.statement.condition != nil {
 		var parts []map[string]any
-		fmt.Println("not nil")
 		var value any
 		if s.params == nil {
 			value = s.statement.condition.value
 		} else {
 			value = C.GoString((*C.char)(s.params[0].ParameterValuePtr))
 		}
-		fmt.Printf("value %s", value)
 		if err := s.fetchPart(s.statement.table, s.statement.condition.column, value, &parts); err != nil {
 			panic(err)
 		}
 		s.populateColDesc(&parts)
 		s.data = make([][]any, 0, len(parts))
 		s.populateData(&parts)
-		fmt.Printf("XXQ %+q", parts)
 	} else {
 		panic("uh?")
 	}
-	//fmt.Printf("XXX: %d %d", len(parts), len(s.data))
-	//fmt.Printf("XXX: %+q", s.data)
-	//fmt.Printf("XXX: %+q", s.columnNames)
-	//fmt.Printf("XXX: %+q", s.def)
 
 	return C.SQL_SUCCESS
 }
@@ -820,12 +789,6 @@ func SQLFreeHandle(HandleType C.SQLSMALLINT, Handle C.SQLHANDLE) C.SQLRETURN {
 
 //export SQLTables
 func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C.SQLSMALLINT, SchemaName *C.SQLCHAR, NameLength2 C.SQLSMALLINT, TableName *C.SQLCHAR, NameLength3 C.SQLSMALLINT, TableType *C.SQLCHAR, NameLength4 C.SQLSMALLINT) C.SQLRETURN {
-	catalogName := toGoString(CatalogName, NameLength1)
-	schemaName := toGoString(SchemaName, NameLength2)
-	tableName := toGoString(TableName, NameLength3)
-	tableType := toGoString(TableType, NameLength4)
-
-	fmt.Printf("SQLTables %q  %q %q  %q\n", catalogName, schemaName, tableName, tableType)
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
 	s.def = []*desc{
@@ -858,12 +821,8 @@ func rowFromMap(def []*desc, data map[string]any) []any {
 
 //export SQLColumns
 func SQLColumns(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C.SQLSMALLINT, SchemaName *C.SQLCHAR, NameLength2 C.SQLSMALLINT, TableName *C.SQLCHAR, NameLength3 C.SQLSMALLINT, ColumnName *C.SQLCHAR, NameLength4 C.SQLSMALLINT) C.SQLRETURN {
-	catalogName := toGoString(CatalogName, NameLength1)
-	schemaName := toGoString(SchemaName, NameLength2)
 	tableName := toGoString(TableName, NameLength3)
-	columnName := toGoString(ColumnName, NameLength4)
 
-	fmt.Printf("SQLTables %q  %q %q  %q\n", catalogName, schemaName, tableName, columnName)
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
 	s.def = []*desc{
@@ -912,8 +871,6 @@ func SQLColumns(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 
 
 //export SQLSetStmtAttr
 func SQLSetStmtAttr(StatementHandle C.SQLHSTMT, Attribute C.SQLINTEGER, ValuePtr C.SQLPOINTER, StringLength C.SQLINTEGER) C.SQLRETURN {
-	fmt.Printf("SQLSetStmtAttr %q  %q %q  %q\n", StatementHandle, Attribute, ValuePtr, StringLength)
-
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
 	switch Attribute {
@@ -946,8 +903,6 @@ func SQLSetStmtAttr(StatementHandle C.SQLHSTMT, Attribute C.SQLINTEGER, ValuePtr
 func SQLDescribeCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, ColumnName *C.SQLCHAR, BufferLength C.SQLSMALLINT,
 	NameLengthPtr *C.SQLSMALLINT, DataTypePtr *C.SQLSMALLINT, ColumnSizePtr *C.SQLULEN,
 	DecimalDigitsPtr *C.SQLSMALLINT, NullablePtr *C.SQLSMALLINT) C.SQLRETURN {
-	fmt.Printf("SQLDescribeCol %q  %q %v %q %v %v %v %v %v\n", StatementHandle, ColumnNumber, ColumnName, BufferLength,
-		NameLengthPtr, DataTypePtr, ColumnSizePtr, DecimalDigitsPtr, NullablePtr)
 
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
@@ -968,9 +923,6 @@ func SQLDescribeCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, Col
 func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetType C.SQLSMALLINT,
 	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN) C.SQLRETURN {
 
-	fmt.Printf("SQLBindCol %q  %q %v %q %v %v\n", StatementHandle, ColumnNumber, TargetType, TargetValuePtr,
-		BufferLength, StrLen_or_IndPtr)
-
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	if s.binds == nil {
 		s.binds = make([]*bind, len(s.data[0]))
@@ -988,13 +940,8 @@ func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetT
 
 //export SQLFetchScroll
 func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, FetchOffset C.SQLLEN) C.SQLRETURN {
-	fmt.Printf("SQLFetchScroll %v  %v %v\n", StatementHandle, FetchOrientation, FetchOffset)
-
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	s.index = s.index + 1
-
-	fmt.Printf("  index %v\n", s.index)
-	fmt.Printf("  data len %v\n", len(s.data))
 
 	if s.index >= len(s.data) {
 		return C.SQL_NO_DATA
@@ -1012,13 +959,8 @@ func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, 
 
 //export SQLFetch
 func SQLFetch(StatementHandle C.SQLHSTMT) C.SQLRETURN {
-	//fmt.Printf("SQLFetch %q\n", StatementHandle)
-
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	s.index = s.index + 1
-
-	//fmt.Printf("  index %q\n", s.index)
-	//fmt.Printf("  data len %q\n", len(s.data))
 
 	if s.index >= len(s.data) {
 		return C.SQL_NO_DATA
@@ -1067,7 +1009,6 @@ func min[T constraints.Ordered](a, b T) T {
 func populateData(value any, TargetType C.SQLSMALLINT,
 	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN) {
 
-	//fmt.Printf("Type: %T TargetType: %d %s \n", value, TargetType, targetTypeToString(TargetType))
 	switch value := value.(type) {
 	case string:
 		switch TargetType {
@@ -1083,7 +1024,6 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 			src := utf8stringToUTF16(value)
 			length := min(C.SQLLEN(len(*src)*2), BufferLength)
 
-			//fmt.Printf("len*2: %d BufferLength: %d min: %d", len(*src)*2, BufferLength, length)
 			if len(*src) > 0 && TargetValuePtr != nil {
 				C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.size_t(length))
 			}
@@ -1138,9 +1078,6 @@ func SQLGetData(StatementHandle C.SQLHSTMT, Col_or_Param_Num C.SQLUSMALLINT, Tar
 
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
-	//value := s.data[s.index][Col_or_Param_Num-1]
-	//fmt.Printf("%d %v %T\n", Col_or_Param_Num-1, value, value)
-
 	populateData(s.data[s.index][Col_or_Param_Num-1], TargetType, TargetValuePtr, BufferLength, StrLen_or_IndPtr)
 
 	return C.SQL_SUCCESS
@@ -1176,8 +1113,6 @@ func SQLColAttribute(
 
 //export SQLRowCount
 func SQLRowCount(StatementHandle C.SQLHSTMT, RowCountPtr *C.SQLLEN) C.SQLRETURN {
-	fmt.Printf("SQLRowCount %q %v\n", StatementHandle, RowCountPtr)
-
 	*RowCountPtr = 1
 
 	return C.SQL_SUCCESS
@@ -1185,16 +1120,12 @@ func SQLRowCount(StatementHandle C.SQLHSTMT, RowCountPtr *C.SQLLEN) C.SQLRETURN 
 
 //export SQLCancel
 func SQLCancel(StatementHandle C.SQLHSTMT) C.SQLRETURN {
-	fmt.Printf("SQLCancel %q\n", StatementHandle)
-
 	return C.SQL_SUCCESS
 
 }
 
 //export SQLFreeStmt
 func SQLFreeStmt(StatementHandle C.SQLHSTMT, Option C.SQLUSMALLINT) C.SQLRETURN {
-	fmt.Printf("SQLFreeStmt %q %q\n", StatementHandle, Option)
-
 	return C.SQL_SUCCESS
 
 }
@@ -1202,14 +1133,11 @@ func SQLFreeStmt(StatementHandle C.SQLHSTMT, Option C.SQLUSMALLINT) C.SQLRETURN 
 //export SQLGetInfo
 func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePtr C.SQLPOINTER,
 	BufferLength C.SQLSMALLINT, StringLengthPtr *C.SQLSMALLINT) C.SQLRETURN {
-	fmt.Printf("SQLGetInfo %v %d %v %q %v\n", ConnectionHandle, InfoType, InfoValuePtr, BufferLength, StringLengthPtr)
 	return C.SQL_SUCCESS
-
 }
 
 //export SQLDisconnect
 func SQLDisconnect(ConnectionHandle C.SQLHDBC) C.SQLRETURN {
-	fmt.Printf("SQLGeSQLDisconnecttInfo %v\n", ConnectionHandle)
 	return C.SQL_SUCCESS
 }
 
