@@ -29,7 +29,7 @@ Contributions welcome.
 
 ### Windows
 
-Contributions welcome. Binary builds for Windows are currently also broken.
+Contributions welcome.
 
 ### KiCad Configuration
 
