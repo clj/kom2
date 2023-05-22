@@ -52,8 +52,8 @@ Create a `inventree.kicad_dbl` file with a valid configuration (see the [KiCad d
             "name": "Resistors",
             "table": "Resistors",
             "key": "IPN",
-            "symbols": "metadata.kicad.symbols",
-            "footprints": "metadata.kicad.footprints",
+            "symbols": "parameter.Symbol",
+            "footprints": "parameter.Footprint",
             "fields": [
                 {
                     "column": "IPN",
