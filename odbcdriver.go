@@ -263,7 +263,9 @@ func (c *connectionHandle) init(envHandle *environmentHandle) {
 }
 
 func (c *connectionHandle) updateIpnToPkMap(parts *[]map[string]any) {
-	c.ipnToPkMap = make(map[string]any)
+	if c.ipnToPkMap == nil {
+		c.ipnToPkMap = make(map[string]any)
+	}
 
 	for _, part := range *parts {
 		if part["IPN"] == nil {
