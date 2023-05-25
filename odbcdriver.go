@@ -119,12 +119,17 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 
 	dsn = conStrArg("dsn", dsn)
 
+	var fetchParametersStr, fetchMetadataStr string
+
 	// Config file is lowest priority
 	if dsn != "" {
 		connHandle.inventreeConfig.server = SQLGetPrivateProfileString(dsn, "server", "", ".odbc.ini")
 		connHandle.inventreeConfig.userName = SQLGetPrivateProfileString(dsn, "username", "", ".odbc.ini")
 		connHandle.inventreeConfig.password = SQLGetPrivateProfileString(dsn, "password", "", ".odbc.ini")
 		connHandle.inventreeConfig.apiToken = SQLGetPrivateProfileString(dsn, "apitoken", "", ".odbc.ini")
+		fetchParametersStr = SQLGetPrivateProfileString(dsn, "apitoken", "", ".odbc.ini")
+		fetchMetadataStr = SQLGetPrivateProfileString(dsn, "apitoken", "", ".odbc.ini")
+
 	}
 
 	// Then connection string is higher
@@ -132,6 +137,8 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 	connHandle.inventreeConfig.userName = conStrArg("username", connHandle.inventreeConfig.userName)
 	connHandle.inventreeConfig.password = conStrArg("password", connHandle.inventreeConfig.password)
 	connHandle.inventreeConfig.apiToken = conStrArg("apitoken", connHandle.inventreeConfig.apiToken)
+	fetchParametersStr = conStrArg("fetchparameters", fetchParametersStr)
+	fetchMetadataStr = conStrArg("fetchparameters", fetchMetadataStr)
 
 	// Then explicit username and password is highest
 	if userName != "" {
@@ -139,6 +146,28 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 	}
 	if password != "" {
 		connHandle.inventreeConfig.password = password
+	}
+
+	switch strings.ToLower(fetchParametersStr) {
+	case "yes":
+		connHandle.inventreeConfig.fetchParameters = true
+	case "no":
+		connHandle.inventreeConfig.fetchParameters = false
+	case "":
+		connHandle.inventreeConfig.fetchParameters = true
+	default:
+		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "fetchParameters accepts 'yes' or 'no"})
+	}
+
+	switch strings.ToLower(fetchMetadataStr) {
+	case "yes":
+		connHandle.inventreeConfig.fetchMetadata = true
+	case "no":
+		connHandle.inventreeConfig.fetchMetadata = false
+	case "":
+		connHandle.inventreeConfig.fetchMetadata = false
+	default:
+		return SetAndReturnError(connHandle, &DriverError{SqlState: "08001", Message: "fetchMetadata accepts 'yes' or 'no"})
 	}
 
 	if connHandle.inventreeConfig.server == "" {
@@ -243,10 +272,12 @@ type connectionHandle struct {
 
 	env             *environmentHandle
 	inventreeConfig struct {
-		server   string
-		userName string
-		password string
-		apiToken string
+		server          string
+		userName        string
+		password        string
+		apiToken        string
+		fetchParameters bool
+		fetchMetadata   bool
 	}
 	categoryMapping map[string]int
 	// This cache isn't ideal because it never expires. However, for KiCad
@@ -424,28 +455,32 @@ func (s *statementHandle) fetchPart(category string, column string, value any, p
 
 	g.Go(getPart)
 
-	g.Go(func() error {
-		if err := s.conn.apiGet(fmt.Sprintf("/api/part/%v/metadata/", pkValue), nil, &partMetadata); err != nil {
-			return err
-		}
+	if s.conn.inventreeConfig.fetchMetadata {
+		g.Go(func() error {
+			if err := s.conn.apiGet(fmt.Sprintf("/api/part/%v/metadata/", pkValue), nil, &partMetadata); err != nil {
+				return err
+			}
 
-		return nil
-	})
+			return nil
+		})
+	}
 
-	g.Go(func() error {
-		var rawPartParameters []map[string]any
-		args := make(map[string]string)
-		value, _ := Convert(pkValue, "string") // maybe just sprintf?
-		args["part"] = value.(string)
+	if s.conn.inventreeConfig.fetchParameters {
+		g.Go(func() error {
+			var rawPartParameters []map[string]any
+			args := make(map[string]string)
+			value, _ := Convert(pkValue, "string") // maybe just sprintf?
+			args["part"] = value.(string)
 
-		if err := s.conn.apiGet("/api/part/parameter/", args, &rawPartParameters); err != nil {
-			return err
-		}
+			if err := s.conn.apiGet("/api/part/parameter/", args, &rawPartParameters); err != nil {
+				return err
+			}
 
-		partParameters = mangleParameters(rawPartParameters)
+			partParameters = mangleParameters(rawPartParameters)
 
-		return nil
-	})
+			return nil
+		})
+	}
 
 	if err := g.Wait(); err != nil {
 		return err
