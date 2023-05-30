@@ -528,16 +528,20 @@ func (s *statementHandle) populateColDesc(data *[]map[string]any) {
 	for _, row := range *data {
 		for key, _ := range row {
 			if _, ok := columns[key]; !ok {
+				size := 0 // See: http://www.ch-werner.de/sqliteodbc/html/sqlite3odbc_8c.html#a107
 				var dataType C.short
 				switch row[key].(type) {
 				case string:
 					dataType = C.SQL_VARCHAR
+					size = 255
 				case float64:
 					dataType = C.SQL_DOUBLE
+					size = 54
 				case bool:
 					dataType = C.SQL_INTEGER
+					size = 10
 				}
-				columns[key] = &desc{name: key, dataType: dataType, nullable: C.SQL_NULLABLE}
+				columns[key] = &desc{name: key, dataType: dataType, colSize: size, nullable: C.SQL_NULLABLE}
 			}
 		}
 	}
@@ -950,6 +954,7 @@ func SQLDescribeCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, Col
 	*NameLengthPtr = C.short(len(col.name))
 	*DataTypePtr = C.short(col.dataType)
 	*NullablePtr = C.short(col.nullable)
+	*ColumnSizePtr = C.ulong(col.colSize)
 
 	return C.SQL_SUCCESS
 }
