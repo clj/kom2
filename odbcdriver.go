@@ -300,7 +300,10 @@ func (c *connectionHandle) updateIpnToPkMap(parts *[]map[string]any) {
 		if part["IPN"] == nil {
 			continue
 		}
-		pk := part["pk"]
+		pk, err := part["pk"].(json.Number).Int64()
+		if err != nil {
+			panic("Was unable to convert 'pk' to an int64")
+		}
 		ipn := part["IPN"].(string)
 
 		c.ipnToPkMap[ipn] = pk
@@ -355,6 +358,7 @@ func (c *connectionHandle) apiGet(resource string, args map[string]string, resul
 	}
 
 	decoder := json.NewDecoder(response.Body)
+	decoder.UseNumber()
 	err = decoder.Decode(result)
 	if err != nil {
 		return err
@@ -530,7 +534,15 @@ func (s *statementHandle) populateColDesc(data *[]map[string]any) {
 			if _, ok := columns[key]; !ok {
 				size := 0 // See: http://www.ch-werner.de/sqliteodbc/html/sqlite3odbc_8c.html#a107
 				var dataType C.short
-				switch row[key].(type) {
+				switch value := row[key].(type) {
+				case json.Number:
+					if _, err := value.Int64(); err == nil {
+						dataType = C.SQL_BIGINT
+						size = 20
+					} else if _, err := value.Float64(); err == nil {
+						dataType = C.SQL_DOUBLE
+						size = 54
+					}
 				case string:
 					dataType = C.SQL_VARCHAR
 					size = 255
@@ -1050,6 +1062,40 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN) {
 
 	switch value := value.(type) {
+	case json.Number:
+		switch TargetType {
+		case C.SQL_C_CHAR:
+			if TargetValuePtr != nil {
+				dst := (*C.char)(TargetValuePtr)
+				src := C.CString(value.String())
+				defer C.free(unsafe.Pointer(src))
+				C.strncpy(dst, src, C.size_t(BufferLength))
+			}
+			*StrLen_or_IndPtr = C.SQLLEN(len(value))
+		case C.SQL_C_WCHAR:
+			src := utf8stringToUTF16(value.String())
+			length := min(C.SQLLEN(len(*src)*2), BufferLength)
+
+			if len(*src) > 0 && TargetValuePtr != nil {
+				C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.size_t(length))
+			}
+
+			*StrLen_or_IndPtr = C.SQLLEN(length)
+		case C.SQL_DOUBLE:
+			if value, err := value.Float64(); err == nil {
+				*(*C.double)(TargetValuePtr) = C.double(value)
+			} else {
+				*StrLen_or_IndPtr = C.SQL_NULL_DATA
+			}
+		case C.SQL_C_SBIGINT:
+			if value, err := value.Int64(); err == nil {
+				*(*C.long)(TargetValuePtr) = C.long(value)
+			} else {
+				*StrLen_or_IndPtr = C.SQL_NULL_DATA
+			}
+		default:
+			*StrLen_or_IndPtr = C.SQL_NULL_DATA
+		}
 	case string:
 		switch TargetType {
 		case C.SQL_C_CHAR:
