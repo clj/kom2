@@ -306,6 +306,9 @@ func (c *connectionHandle) updateIpnToPkMap(parts *[]map[string]any) {
 		}
 		ipn := part["IPN"].(string)
 
+		if ipn == "" {
+			continue
+		}
 		c.ipnToPkMap[ipn] = pk
 	}
 }
