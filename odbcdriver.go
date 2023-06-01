@@ -17,6 +17,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// #if defined(_WIN32)
+//   #include <windows.h>
+// #endif
 // #include <stdint.h>
 // #include <stdlib.h>
 // #include <string.h>
@@ -26,7 +29,6 @@ import (
 import "C"
 
 func Convert(value any, t string) (any, error) {
-
 	switch t {
 	case "int":
 	case "float":
@@ -100,7 +102,6 @@ func toGoString[T C.int | C.short | C.long](str *C.SQLCHAR, len T) string {
 }
 
 func (connHandle *connectionHandle) initConnection(dsn, connectionString, userName, password string) C.SQLRETURN {
-
 	args := make(map[string]string)
 	for _, arg := range strings.Split(connectionString, ";") {
 		sarg := strings.SplitN(arg, "=", 2)
@@ -198,8 +199,8 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 func SQLConnect(ConnectionHandle C.SQLHDBC,
 	ServerName *C.SQLCHAR, NameLength1 C.SQLSMALLINT,
 	UserName *C.SQLCHAR, NameLength2 C.SQLSMALLINT,
-	Authentication *C.SQLCHAR, NameLength3 C.SQLSMALLINT) C.SQLRETURN {
-
+	Authentication *C.SQLCHAR, NameLength3 C.SQLSMALLINT,
+) C.SQLRETURN {
 	serverName := toGoString(ServerName, NameLength1)
 	userName := toGoString(UserName, NameLength2)
 	password := toGoString(Authentication, NameLength3)
@@ -217,8 +218,8 @@ func SQLDriverConnect(
 	OutConnectionString *C.SQLCHAR,
 	BufferLength C.SQLSMALLINT,
 	StringLength2Ptr *C.SQLSMALLINT,
-	DriverCompletion C.SQLUSMALLINT) C.SQLRETURN {
-
+	DriverCompletion C.SQLUSMALLINT,
+) C.SQLRETURN {
 	inConnectionString := toGoString(InConnectionString, StringLength1)
 
 	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
@@ -375,7 +376,7 @@ func (c *connectionHandle) updateCategoryMapping() error {
 		Pk         int    `json:"pk"`
 		Pathstring string `json:"pathstring"`
 	}
-	var categories = []category{}
+	categories := []category{}
 	if err := c.apiGet("/api/part/category/", nil, &categories); err != nil {
 		return err
 	}
@@ -533,7 +534,7 @@ func (s *statementHandle) populateColDesc(data *[]map[string]any) {
 	columns := make(map[string]*desc)
 
 	for _, row := range *data {
-		for key, _ := range row {
+		for key := range row {
 			if _, ok := columns[key]; !ok {
 				size := 0 // See: http://www.ch-werner.de/sqliteodbc/html/sqlite3odbc_8c.html#a107
 				var dataType C.short
@@ -656,8 +657,8 @@ func SQLGetDiagRec(
 	NativeErrorPtr *C.SQLINTEGER,
 	MessageText *C.SQLCHAR,
 	BufferLength C.SQLSMALLINT,
-	TextLengthPtr *C.SQLSMALLINT) C.SQLRETURN {
-
+	TextLengthPtr *C.SQLSMALLINT,
+) C.SQLRETURN {
 	if RecNumber != 1 {
 		return C.SQL_NO_DATA
 	}
@@ -855,7 +856,7 @@ func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C
 	categories := s.conn.categoryMapping
 	s.index = -1
 	s.data = make([][]any, 0, len(categories))
-	for name, _ := range categories {
+	for name := range categories {
 		s.data = append(s.data, []any{nil, nil, name, "TABLE", nil})
 	}
 
@@ -956,8 +957,8 @@ func SQLSetStmtAttr(StatementHandle C.SQLHSTMT, Attribute C.SQLINTEGER, ValuePtr
 //export SQLDescribeCol
 func SQLDescribeCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, ColumnName *C.SQLCHAR, BufferLength C.SQLSMALLINT,
 	NameLengthPtr *C.SQLSMALLINT, DataTypePtr *C.SQLSMALLINT, ColumnSizePtr *C.SQLULEN,
-	DecimalDigitsPtr *C.SQLSMALLINT, NullablePtr *C.SQLSMALLINT) C.SQLRETURN {
-
+	DecimalDigitsPtr *C.SQLSMALLINT, NullablePtr *C.SQLSMALLINT,
+) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
 	if s.def == nil || s.def[ColumnNumber-1] == nil {
@@ -976,8 +977,8 @@ func SQLDescribeCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, Col
 
 //export SQLBindCol
 func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetType C.SQLSMALLINT,
-	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN) C.SQLRETURN {
-
+	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN,
+) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	if s.binds == nil {
 		s.binds = make([]*bind, len(s.data[0]))
@@ -1062,8 +1063,8 @@ func min[T constraints.Ordered](a, b T) T {
 }
 
 func populateData(value any, TargetType C.SQLSMALLINT,
-	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN) {
-
+	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN,
+) {
 	switch value := value.(type) {
 	case json.Number:
 		switch TargetType {
@@ -1163,14 +1164,13 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 
 //export SQLGetData
 func SQLGetData(StatementHandle C.SQLHSTMT, Col_or_Param_Num C.SQLUSMALLINT, TargetType C.SQLSMALLINT,
-	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN) C.SQLRETURN {
-
+	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN,
+) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
 	populateData(s.data[s.index][Col_or_Param_Num-1], TargetType, TargetValuePtr, BufferLength, StrLen_or_IndPtr)
 
 	return C.SQL_SUCCESS
-
 }
 
 //export SQLColAttribute
@@ -1181,8 +1181,8 @@ func SQLColAttribute(
 	CharacterAttributePtr C.SQLPOINTER,
 	BufferLength C.SQLSMALLINT,
 	StringLengthPtr *C.SQLSMALLINT,
-	NumericAttributePtr *C.SQLLEN) C.SQLRETURN {
-
+	NumericAttributePtr *C.SQLLEN,
+) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
 	col := s.def[ColumnNumber-1]
@@ -1197,7 +1197,6 @@ func SQLColAttribute(
 		}
 	}
 	return C.SQL_SUCCESS
-
 }
 
 //export SQLRowCount
@@ -1210,18 +1209,17 @@ func SQLRowCount(StatementHandle C.SQLHSTMT, RowCountPtr *C.SQLLEN) C.SQLRETURN 
 //export SQLCancel
 func SQLCancel(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 	return C.SQL_SUCCESS
-
 }
 
 //export SQLFreeStmt
 func SQLFreeStmt(StatementHandle C.SQLHSTMT, Option C.SQLUSMALLINT) C.SQLRETURN {
 	return C.SQL_SUCCESS
-
 }
 
 //export SQLGetInfo
 func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePtr C.SQLPOINTER,
-	BufferLength C.SQLSMALLINT, StringLengthPtr *C.SQLSMALLINT) C.SQLRETURN {
+	BufferLength C.SQLSMALLINT, StringLengthPtr *C.SQLSMALLINT,
+) C.SQLRETURN {
 	return C.SQL_SUCCESS
 }
 
@@ -1235,8 +1233,8 @@ func SQLSetConnectAttr(
 	ConnectionHandle C.SQLHDBC,
 	Attribute C.SQLINTEGER,
 	ValuePtr C.SQLPOINTER,
-	StringLength C.SQLINTEGER) C.SQLRETURN {
-
+	StringLength C.SQLINTEGER,
+) C.SQLRETURN {
 	return C.SQL_SUCCESS
 }
 
@@ -1247,8 +1245,8 @@ func SQLDescribeParam(
 	DataTypePtr *C.SQLSMALLINT,
 	ParameterSizePtr *C.SQLULEN,
 	DecimalDigitsPtr *C.SQLSMALLINT,
-	NullablePtr *C.SQLSMALLINT) C.SQLRETURN {
-
+	NullablePtr *C.SQLSMALLINT,
+) C.SQLRETURN {
 	if ParameterNumber != 1 {
 		panic("ParameterNumber != 1")
 	}
@@ -1258,7 +1256,6 @@ func SQLDescribeParam(
 	*NullablePtr = C.SQL_NO_NULLS
 
 	return C.SQL_SUCCESS
-
 }
 
 //export SQLBindParameter
@@ -1272,8 +1269,8 @@ func SQLBindParameter(
 	DecimalDigits C.SQLSMALLINT,
 	ParameterValuePtr C.SQLPOINTER,
 	BufferLength C.SQLLEN,
-	StrLen_or_IndPtr *C.SQLLEN) C.SQLRETURN {
-
+	StrLen_or_IndPtr *C.SQLLEN,
+) C.SQLRETURN {
 	if InputOutputType != C.SQL_PARAM_INPUT {
 		panic("InputOutputType != C.SQL_PARAM_INPUT")
 	}
