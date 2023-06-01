@@ -969,7 +969,7 @@ func SQLDescribeCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, Col
 	*NameLengthPtr = C.short(len(col.name))
 	*DataTypePtr = C.short(col.dataType)
 	*NullablePtr = C.short(col.nullable)
-	*ColumnSizePtr = C.ulong(col.colSize)
+	*ColumnSizePtr = C.SQLULEN(col.colSize)
 
 	return C.SQL_SUCCESS
 }
