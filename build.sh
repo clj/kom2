@@ -7,4 +7,6 @@ esac
 
 set -x
 
-go build -buildmode=c-shared -o kom2.$ext
+echo $(uname -s)
+
+go build -v -buildmode=c-shared -o kom2.$ext
