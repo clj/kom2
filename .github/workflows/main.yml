@@ -7,14 +7,28 @@ permissions:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            output: kom2-linux-amd64.so
+          - os: macos-latest
+            output: kom2-macos-arm64.dylib
+            env: CGO_ENABLED=1 GOARCH=arm64
+          - os: macos-latest
+            output: kom2-macos-amd64.dylib
+            env: CGO_ENABLED=1 GOARCH=amd64
+          - os: windows-latest
+            output: kom2-windows-amd64.so
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - uses: actions/checkout@v3
-
-      - name: Install apt dependencies
-        run: |
-          sudo apt install -y unixodbc-dev
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -25,22 +39,6 @@ jobs:
         run: |
           go get .
 
-      - name: Copy unixodbc include files
-        run: |
-          mkdir $GITHUB_WORKSPACE/include
-          cp /usr/include/odbcinst.h $GITHUB_WORKSPACE/include
-          cp /usr/include/odbcinstext.h $GITHUB_WORKSPACE/include
-          cp /usr/include/sql.h $GITHUB_WORKSPACE/include
-          cp /usr/include/sqlext.h $GITHUB_WORKSPACE/include
-          cp /usr/include/sqlspi.h $GITHUB_WORKSPACE/include
-          cp /usr/include/sqltypes.h $GITHUB_WORKSPACE/include
-          cp /usr/include/sqlucode.h $GITHUB_WORKSPACE/include
-          cp /usr/include/uodbc_extras.h $GITHUB_WORKSPACE/include
-          cp /usr/include/uodbc_stats.h $GITHUB_WORKSPACE/include
-
-      # - name: Test
-      #   run: ./test.sh
-
       - name: Get build date
         run: |
           echo "timestamp=$(date -Iseconds)" >> "$GITHUB_ENV"
@@ -50,37 +48,41 @@ jobs:
           echo "release_name=$(echo ${{ github.ref_name }} | cut -d- -f2)" >> "$GITHUB_ENV"
         if: startsWith(github.ref_name, 'release-')
 
-      - uses: actions/checkout@v3
-        with:
-          repository: clj/ghaction-xgo
-          path: ghaction-xgo
-          ref: updates
-
       - name: Build
-        uses: ./ghaction-xgo
+        run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
         with:
-          xgo_version: latest
-          go_version: 1.20.3
-          dest: build
-          prefix: kom2
-          targets: darwin/amd64,darwin/arm64,linux/amd64,linux/arm64,windows/amd64
-          v: true
-          x: false
-          race: false
-          ldflags: -s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}
-          buildmode: c-shared
-          trimpath: true
-          tags: xgo
+          path: |
+            *.dll
+            *.so
+            *.dylib
+
+  release:
+    needs: build
+
+    runs-on: ubuntu-latest
+
+    if: startsWith(github.ref_name, 'release-')
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+
+      - name: Get release tag name
+        run: |
+          echo "release_name=$(echo ${{ github.ref_name }} | cut -d- -f2)" >> "$GITHUB_ENV"
 
       - name: Package
-        run: ./package.sh build/ ${{ env.release_name }}
-        if: startsWith(github.ref_name, 'release-')
+        run: ./package.sh artifact/ ${{ env.release_name }}
 
       - name: Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref_name, 'release-')
         with:
           body_path: ${{ github.workspace }}/release-notes/${{ env.release_name }}.md
           files:
-            build/kicad-odbc-middleware2-*.zip
+            artifact/kicad-odbc-middleware2-*.zip
           fail_on_unmatched_files: true
