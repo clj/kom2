@@ -60,7 +60,7 @@ jobs:
 
       - name: cat
         run: cat c:/programdata/chocolatey/lib/mingw/tools/install/mingw64/x86_64-w64-mingw32/include/sqltypes.h
-        if: ${{ matrix.os }} == 'windows-latest'
+        if: matrix.os == 'windows-latest'
 
       - name: Build
         run: ./build.sh
