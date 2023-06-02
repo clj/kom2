@@ -15,9 +15,11 @@ jobs:
           - os: macos-latest
             output: kom2-macos-arm64.dylib
             env: CGO_ENABLED=1 GOARCH=arm64
+            arch: arm64
           - os: macos-latest
             output: kom2-macos-amd64.dylib
             env: CGO_ENABLED=1 GOARCH=amd64
+            arch: amd64
           - os: windows-latest
             output: kom2-windows-amd64.dll
 
@@ -48,8 +50,14 @@ jobs:
           echo "release_name=$(echo ${{ github.ref_name }} | cut -d- -f2)" >> "$GITHUB_ENV"
         if: startsWith(github.ref_name, 'release-')
 
+      - name: Install arm64 unixodbc for macOS arm64 build
+        if: matrix.os == 'macos-latest' && matrix.arch == 'arm64'
+        run: |
+          brew fetch --force --bottle-tag=arm64_monterey unixodbc
+          HOMEBREW_NO_INSTALL_CLEANUP=1 brew reinstall $(brew --cache --bottle-tag=arm64_monterey unixodbc)
+
       - name: Build
-        run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
+        run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -58,6 +66,7 @@ jobs:
             *.dll
             *.so
             *.dylib
+        if: startsWith(github.ref_name, 'release-')
 
   release:
     needs: build
