@@ -19,7 +19,7 @@ jobs:
             output: kom2-macos-amd64.dylib
             env: CGO_ENABLED=1 GOARCH=amd64
           - os: windows-latest
-            output: kom2-windows-amd64.so
+            output: kom2-windows-amd64.dll
 
     runs-on: ${{ matrix.os }}
 
