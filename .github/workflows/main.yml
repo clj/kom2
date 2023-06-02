@@ -56,11 +56,11 @@ jobs:
           brew fetch --force --bottle-tag=arm64_monterey unixodbc
           HOMEBREW_NO_INSTALL_CLEANUP=1 brew reinstall $(brew --cache --bottle-tag=arm64_monterey unixodbc)
 
-      - run: find C:/ProgramData/Chocolatey/lib/mingw -name *odbcinst*
+      - run: find C:/ProgramData/Chocolatey/lib/mingw -name *odbc32*
         if: matrix.os == 'windows-latest'
 
       - name: Build
-        run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
+        run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -v -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
