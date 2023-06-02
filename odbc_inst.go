@@ -4,8 +4,6 @@ package main
 
 // #if defined(_WIN32)
 //   #include <windows.h>
-// #else
-//   #cgo LDFLAGS: -lodbcinst
 // #endif
 // #include <odbcinst.h>
 // #include <stdlib.h>
