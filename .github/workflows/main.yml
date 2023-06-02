@@ -56,7 +56,7 @@ jobs:
           brew fetch --force --bottle-tag=arm64_monterey unixodbc
           HOMEBREW_NO_INSTALL_CLEANUP=1 brew reinstall $(brew --cache --bottle-tag=arm64_monterey unixodbc)
 
-      - run: find / -name *odbcinst*
+      - run: find c:/ -name *odbcinst*
         if: matrix.os == 'windows-latest'
 
       - name: Build
