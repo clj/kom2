@@ -56,6 +56,8 @@ jobs:
           brew fetch --force --bottle-tag=arm64_monterey unixodbc
           HOMEBREW_NO_INSTALL_CLEANUP=1 brew reinstall $(brew --cache --bottle-tag=arm64_monterey unixodbc)
 
+      - run: find / -name *odbcinst*
+
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
