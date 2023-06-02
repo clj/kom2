@@ -22,6 +22,7 @@ jobs:
             arch: amd64
           - os: windows-latest
             output: kom2-windows-amd64.dll
+            env: CGO_LDFLAGS=-lodbc32
 
     runs-on: ${{ matrix.os }}
 
