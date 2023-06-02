@@ -3,6 +3,9 @@
 package main
 
 // #cgo LDFLAGS: -lodbcinst
+// #if defined(_WIN32)
+//   #include <windows.h>
+// #endif
 // #include <odbcinst.h>
 // #include <stdlib.h>
 import "C"
