@@ -14,10 +14,10 @@ jobs:
             output: kom2-linux-amd64.so
           - os: macos-latest
             output: kom2-macos-arm64.dylib
-            env: CGO_ENABLED=1 GOARCH=arm64
+            env: CGO_ENABLED=1 GOARCH=arm64 arch --arm64
           - os: macos-latest
             output: kom2-macos-amd64.dylib
-            env: CGO_ENABLED=1 GOARCH=amd64
+            env: CGO_ENABLED=1 GOARCH=amd64 arch --x86_64
           - os: windows-latest
             output: kom2-windows-amd64.dll
 
