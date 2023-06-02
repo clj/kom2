@@ -65,8 +65,6 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v3
 
-      - run: ls -lR
-
       - name: Package
         run: ./package.sh artifact/ ${{ env.release_name }}
 
@@ -75,5 +73,5 @@ jobs:
         with:
           body_path: ${{ github.workspace }}/release-notes/${{ env.release_name }}.md
           files:
-            build/kicad-odbc-middleware2-*.zip
+            artifact/kicad-odbc-middleware2-*.zip
           fail_on_unmatched_files: true
