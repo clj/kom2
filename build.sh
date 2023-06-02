@@ -8,4 +8,4 @@ esac
 
 set -x
 
-go build -v -buildmode=c-shared -o kom2.$ext
+go build -buildmode=c-shared -o kom2.$ext $*
