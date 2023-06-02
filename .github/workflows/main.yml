@@ -42,7 +42,7 @@ jobs:
         if: startsWith(github.ref_name, 'release-')
 
       - name: Build
-        run: ./build.sh -o ${{ matrix.output }} -ldflags '-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}'
+        run: ./build.sh -o ${{ matrix.output }} -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
