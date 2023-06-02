@@ -49,7 +49,7 @@ jobs:
         if: startsWith(github.ref_name, 'release-')
 
       - name: Build
-        run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
+        run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -58,6 +58,7 @@ jobs:
             *.dll
             *.so
             *.dylib
+        if: startsWith(github.ref_name, 'release-')
 
   release:
     needs: build
