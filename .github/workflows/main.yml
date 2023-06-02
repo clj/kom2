@@ -22,7 +22,6 @@ jobs:
             arch: amd64
           - os: windows-latest
             output: kom2-windows-amd64.dll
-            env: CGO_LDFLAGS=-lodbc32
 
     runs-on: ${{ matrix.os }}
 
@@ -56,9 +55,6 @@ jobs:
         run: |
           brew fetch --force --bottle-tag=arm64_monterey unixodbc
           HOMEBREW_NO_INSTALL_CLEANUP=1 brew reinstall $(brew --cache --bottle-tag=arm64_monterey unixodbc)
-
-      - run: find C:/ProgramData/Chocolatey/lib/mingw -name *odbc32*
-        if: matrix.os == 'windows-latest'
 
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -x -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"

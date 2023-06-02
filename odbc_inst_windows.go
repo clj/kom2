@@ -2,5 +2,5 @@
 
 package main
 
-// #cgo LDFLAGS: -lodbc32 -lodbccp32
+// #cgo LDFLAGS: -lodbccp32
 import "C"
