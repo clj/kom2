@@ -60,7 +60,7 @@ jobs:
         if: matrix.os == 'windows-latest'
 
       - name: Build
-        run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -v -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
+        run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -x -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
