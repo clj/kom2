@@ -13,7 +13,7 @@ jobs:
           - os: ubuntu-latest
             output: kom2-linux-amd64.so
           - os: macos-latest
-            output: kom2-macos-amd64.dylib
+            output: kom2-macos-arm64.dylib
             env: CGO_ENABLED=1 GOARCH=arm64
           - os: macos-latest
             output: kom2-macos-amd64.dylib
