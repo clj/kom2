@@ -9,10 +9,17 @@ jobs:
   build:
     strategy:
       matrix:
-        #os: [ubuntu-latest] #, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
             output: kom2-linux-amd64.so
+          - os: macos-latest
+            output: kom2-macos-amd64.dylib
+            env: CGO_ENABLED=1 GOARCH=arm64
+          - os: macos-latest
+            output: kom2-macos-amd64.dylib
+            env: CGO_ENABLED=1 GOARCH=amd64
+          - os: windows-latest
+            output: kom2-windows-amd64.so
 
     runs-on: ${{ matrix.os }}
 
@@ -42,7 +49,7 @@ jobs:
         if: startsWith(github.ref_name, 'release-')
 
       - name: Build
-        run: ./build.sh -o ${{ matrix.output }} -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
+        run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
