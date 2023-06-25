@@ -10,6 +10,6 @@ for lib in kom2-*; do
     filename=${filename/darwin/macos}
     zip=${filename/kom2/kicad-odbc-middleware2-$version}.zip
     cp $lib kom2.$ext
-    zip $zip kom2.$ext
+    zip $zip kom2.$ext inst.*
     rm kom2.$ext
 done
