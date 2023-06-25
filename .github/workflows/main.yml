@@ -66,14 +66,12 @@ jobs:
             *.dll
             *.so
             *.dylib
-        if: startsWith(github.ref_name, 'release-')
+            *.exe
 
   release:
     needs: build
 
     runs-on: ubuntu-latest
-
-    if: startsWith(github.ref_name, 'release-')
 
     steps:
       - uses: actions/checkout@v3
@@ -84,6 +82,13 @@ jobs:
       - name: Get release tag name
         run: |
           echo "release_name=$(echo ${{ github.ref_name }} | cut -d- -f2)" >> "$GITHUB_ENV"
+        if: startsWith(github.ref_name, 'release-')
+
+      - name: Get current commit sha
+        run: |
+          echo "release_name=$(echo ${{ github.sha }} | cut -c 1-8)" >> "$GITHUB_ENV"
+        if: |
+          ! startsWith(github.ref_name, 'release-')
 
       - name: Package
         run: ./package.sh artifact/ ${{ env.release_name }}
@@ -95,3 +100,10 @@ jobs:
           files:
             artifact/kicad-odbc-middleware2-*.zip
           fail_on_unmatched_files: true
+        if: startsWith(github.ref_name, 'release-')
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          path: |
+            *.zip
