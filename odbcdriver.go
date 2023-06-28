@@ -693,6 +693,7 @@ type statementHandle struct {
 func (s *statementHandle) init(connHandle *connectionHandle) {
 	s.conn = connHandle
 	s.index = -1
+	s.log = connHandle.log.With().Hex("handle_conn", addressBytes(unsafe.Pointer(s))).Logger()
 }
 
 func (s *statementHandle) populateBinds() {
