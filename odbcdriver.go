@@ -4,15 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"regexp"
 	"runtime/cgo"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf16"
 	"unsafe"
 
+	"github.com/rs/zerolog"
 	"golang.org/x/exp/constraints"
 	"golang.org/x/sync/errgroup"
 )
@@ -120,7 +123,7 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 
 	dsn = conStrArg("dsn", dsn)
 
-	var fetchParametersStr, fetchMetadataStr string
+	var fetchParametersStr, fetchMetadataStr, logFile, logFormat, logLevel string
 
 	// Config file is lowest priority
 	if dsn != "" {
@@ -130,7 +133,9 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 		connHandle.inventreeConfig.apiToken = SQLGetPrivateProfileString(dsn, "apitoken", "", ".odbc.ini")
 		fetchParametersStr = SQLGetPrivateProfileString(dsn, "apitoken", "", ".odbc.ini")
 		fetchMetadataStr = SQLGetPrivateProfileString(dsn, "apitoken", "", ".odbc.ini")
-
+		logFile = SQLGetPrivateProfileString(dsn, "logfile", "", ".odbc.ini")
+		logFormat = SQLGetPrivateProfileString(dsn, "logformat", "", ".odbc.ini")
+		logLevel = SQLGetPrivateProfileString(dsn, "loglevel", "", ".odbc.ini")
 	}
 
 	// Then connection string is higher
@@ -140,6 +145,44 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 	connHandle.inventreeConfig.apiToken = conStrArg("apitoken", connHandle.inventreeConfig.apiToken)
 	fetchParametersStr = conStrArg("fetchparameters", fetchParametersStr)
 	fetchMetadataStr = conStrArg("fetchparameters", fetchMetadataStr)
+	logFile = conStrArg("logfile", logFile)
+	logFormat = conStrArg("logformat", logFormat)
+	logLevel = conStrArg("loglevel", logLevel)
+
+	if logFile != "" {
+		file, _ := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+
+		if logFormat == "pretty" {
+			output := zerolog.ConsoleWriter{Out: file, TimeFormat: time.RFC3339}
+
+			connHandle.log = connHandle.log.Output(output)
+		} else {
+			connHandle.log = connHandle.log.Output(file)
+		}
+	}
+
+	switch logLevel {
+	case "debug":
+		connHandle.log = connHandle.log.Level(zerolog.DebugLevel)
+	case "info":
+		connHandle.log = connHandle.log.Level(zerolog.InfoLevel)
+	case "warn":
+		connHandle.log = connHandle.log.Level(zerolog.WarnLevel)
+	case "error":
+		connHandle.log = connHandle.log.Level(zerolog.ErrorLevel)
+	case "fatal":
+		connHandle.log = connHandle.log.Level(zerolog.FatalLevel)
+	case "panic":
+		connHandle.log = connHandle.log.Level(zerolog.PanicLevel)
+	case "none":
+		connHandle.log = connHandle.log.Level(zerolog.NoLevel)
+	case "disabled":
+		connHandle.log = connHandle.log.Level(zerolog.Disabled)
+	case "trace":
+		connHandle.log = connHandle.log.Level(zerolog.TraceLevel)
+	default:
+		connHandle.log = connHandle.log.Level(zerolog.InfoLevel)
+	}
 
 	// Then explicit username and password is highest
 	if userName != "" {
@@ -258,6 +301,9 @@ type errorInfo struct {
 	errorInfo *DriverError
 }
 
+type logging struct {
+	log zerolog.Logger
+}
 type environmentHandle struct {
 	errorInfo
 
@@ -268,8 +314,20 @@ func (e *environmentHandle) init() {
 	e.httpClient = &http.Client{}
 }
 
+var PTR_SIZE = int(reflect.TypeOf(uintptr(0)).Size())
+
+func addressBytes(address unsafe.Pointer) []byte {
+	hdr := reflect.SliceHeader{Data: uintptr(address), Len: PTR_SIZE, Cap: PTR_SIZE}
+	return *(*[]byte)(unsafe.Pointer(&hdr))
+}
+
+func (e *environmentHandle) MarshalZerologObject(ev *zerolog.Event) {
+	ev.Hex("handle_env", addressBytes(unsafe.Pointer(e)))
+}
+
 type connectionHandle struct {
 	errorInfo
+	logging
 
 	env             *environmentHandle
 	inventreeConfig struct {
@@ -290,6 +348,11 @@ type connectionHandle struct {
 
 func (c *connectionHandle) init(envHandle *environmentHandle) {
 	c.env = envHandle
+	c.log = zerolog.Nop().With().Timestamp().Logger()
+}
+
+func (c *connectionHandle) MarshalZerologObject(e *zerolog.Event) {
+	e.EmbedObject(c.env).Hex("handle_conn", addressBytes(unsafe.Pointer(c)))
 }
 
 func (c *connectionHandle) updateIpnToPkMap(parts *[]map[string]any) {
@@ -614,6 +677,7 @@ type stmt struct {
 }
 type statementHandle struct {
 	errorInfo
+	logging
 
 	conn           *connectionHandle
 	columnNames    []string
@@ -845,6 +909,7 @@ func SQLFreeHandle(HandleType C.SQLSMALLINT, Handle C.SQLHANDLE) C.SQLRETURN {
 //export SQLTables
 func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C.SQLSMALLINT, SchemaName *C.SQLCHAR, NameLength2 C.SQLSMALLINT, TableName *C.SQLCHAR, NameLength3 C.SQLSMALLINT, TableType *C.SQLCHAR, NameLength4 C.SQLSMALLINT) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	log := s.log.With().Str("fn", "SQLFetchScroll").Logger()
 
 	s.def = []*desc{
 		{name: "TABLE_CAT", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
@@ -858,8 +923,11 @@ func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C
 	s.data = make([][]any, 0, len(categories))
 	for name := range categories {
 		s.data = append(s.data, []any{nil, nil, name, "TABLE", nil})
+		log.Debug().Str("category", name).Msg("adding category")
 	}
+	log.Debug().Msgf("added %d categories", len(s.data))
 
+	log.Info().Str("return", "SQL_SUCCESS").Send()
 	return C.SQL_SUCCESS
 }
 
@@ -997,9 +1065,12 @@ func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetT
 //export SQLFetchScroll
 func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, FetchOffset C.SQLLEN) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	log := s.log.With().Str("fn", "SQLFetchScroll").Logger()
+
 	s.index = s.index + 1
 
 	if s.index >= len(s.data) {
+		log.Info().Str("return", "SQL_NO_DATA").Send()
 		return C.SQL_NO_DATA
 	}
 
@@ -1010,6 +1081,8 @@ func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, 
 	if s.rowsFetchedPtr != nil {
 		*s.rowsFetchedPtr = 1
 	}
+
+	log.Info().Str("return", "SQL_SUCCESS").Send()
 	return C.SQL_SUCCESS
 }
 
