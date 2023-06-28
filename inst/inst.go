@@ -91,16 +91,25 @@ func getSQLInstallerError() *SQLInstallErrors {
 	return &errs
 }
 
+func driverString(path string) string {
+	dll := "kom2.dll"
+
+	if path != "" {
+		dll = path + "\\" + dll
+	}
+
+	return "inventree-kom2\000Driver=" + dll + "\000Setup=" + dll + "\000"
+}
+
 func getInstallPath() (string, error) {
 	const maxPath = 500
 	var pathLen C.WORD
 	var usageCount C.DWORD
 
-	driver := "inventree-kom2\000Driver=kom2.dll\000"
 	path := C.malloc(C.size_t(maxPath))
 	defer C.free(path)
 
-	if C.SQLInstallDriverEx(C.CString(driver), nil, C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_INQUIRY, &usageCount) != 1 {
+	if C.SQLInstallDriverEx(C.CString(driverString("")), nil, C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_INQUIRY, &usageCount) != 1 {
 		return "", getSQLInstallerError()
 	}
 
@@ -135,8 +144,6 @@ func copyFile(src, dst string) (int64, error) {
 }
 
 func install(installPath string) error {
-	driver := "inventree-kom2\000Driver=" + installPath + "\\kom2.dll\000"
-
 	const maxPath = 500
 	var pathLen C.WORD
 	var usageCount C.DWORD
@@ -150,7 +157,25 @@ func install(installPath string) error {
 	path := C.malloc(C.size_t(maxPath))
 	defer C.free(path)
 
-	if C.SQLInstallDriverEx(C.CString(driver), C.CString(installPath), C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_COMPLETE, &usageCount) != 1 {
+	if C.SQLInstallDriverEx(C.CString(driverString(installPath)), C.CString(installPath), C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_COMPLETE, &usageCount) != 1 {
+		return getSQLInstallerError()
+	}
+
+	return nil
+}
+
+type configDataSourceAction int
+
+const (
+	addDsn    configDataSourceAction = C.ODBC_ADD_SYS_DSN
+	removeDsn                        = C.ODBC_REMOVE_SYS_DSN
+)
+
+func configDataSource(action configDataSourceAction) error {
+	driverName := "inventree-kom2"
+	attr := "DSN=inventree-kom2\000Database=\000"
+
+	if C.SQLConfigDataSource(nil, C.ushort(action), C.CString(driverName), C.CString(attr)) != 1 {
 		return getSQLInstallerError()
 	}
 
@@ -179,6 +204,10 @@ func main() {
 		if err = install(path); err != nil {
 			panic(err)
 		}
+		configDataSource(removeDsn)
+		if err = configDataSource(addDsn); err != nil {
+			panic(err)
+		}
 	case "uninstall":
 		uninstallCmd.Parse(os.Args[2:])
 		var err error
@@ -186,6 +215,7 @@ func main() {
 		if path, err = getInstallPath(); err != nil {
 			panic(err)
 		}
+		configDataSource(removeDsn)
 		driver := "inventree-kom2\000Driver=" + path + "kom2.dll\000Setup=" + path + "kom2.dll\000"
 		var count C.ulong
 		if C.SQLRemoveDriver(C.CString(driver), 1, &count) != 1 {
