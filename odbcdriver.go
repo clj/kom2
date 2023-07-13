@@ -1327,6 +1327,19 @@ func SQLFreeStmt(StatementHandle C.SQLHSTMT, Option C.SQLUSMALLINT) C.SQLRETURN 
 func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePtr C.SQLPOINTER,
 	BufferLength C.SQLSMALLINT, StringLengthPtr *C.SQLSMALLINT,
 ) C.SQLRETURN {
+	switch InfoType {
+	case C.SQL_DRIVER_ODBC_VER:
+		value := "03.00"
+		if InfoValuePtr != nil {
+			dst := (*C.char)(InfoValuePtr)
+			src := C.CString(value)
+			defer C.free(unsafe.Pointer(src))
+			C.strncpy(dst, src, C.size_t(BufferLength))
+		}
+		*StringLengthPtr = C.SQLSMALLINT(len(value))
+	default:
+		return C.SQL_ERROR
+	}
 	return C.SQL_SUCCESS
 }
 
