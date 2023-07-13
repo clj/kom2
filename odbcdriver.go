@@ -1334,7 +1334,7 @@ func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePt
 			dst := (*C.char)(InfoValuePtr)
 			src := C.CString(value + "\x00")
 			defer C.free(unsafe.Pointer(src))
-			C.strncpy(dst, src, C.size_t(BufferLength)+1)
+			C.strncpy(dst, src, C.size_t(len(value))+1)
 		}
 		*StringLengthPtr = C.SQLSMALLINT(len(value))
 	default:
