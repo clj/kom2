@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -314,11 +315,11 @@ func (e *environmentHandle) init() {
 	e.httpClient = &http.Client{}
 }
 
-var PTR_SIZE = int(reflect.TypeOf(uintptr(0)).Size())
+func addressBytes(addr unsafe.Pointer) []byte {
+	buf := make([]byte, binary.MaxVarintLen64)
 
-func addressBytes(address unsafe.Pointer) []byte {
-	hdr := reflect.SliceHeader{Data: uintptr(address), Len: PTR_SIZE, Cap: PTR_SIZE}
-	return *(*[]byte)(unsafe.Pointer(&hdr))
+	binary.BigEndian.PutUint64(buf, uint64(uintptr(addr)))
+	return buf
 }
 
 func (e *environmentHandle) MarshalZerologObject(ev *zerolog.Event) {
