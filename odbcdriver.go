@@ -1397,4 +1397,7 @@ func SQLBindParameter(
 	return C.SQL_SUCCESS
 }
 
-// SQLSetEnvAttr
+//export SQLSetEnvAttr
+func SQLSetEnvAttr(EnvironmentHandle C.SQLHENV, Attribute C.SQLINTEGER, ValuePtr C.SQLPOINTER, StringLength C.SQLINTEGER) C.SQLRETURN {
+	return C.SQL_SUCCESS
+}
