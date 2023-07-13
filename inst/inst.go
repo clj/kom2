@@ -11,6 +11,7 @@ package main
 #cgo LDFLAGS: -lodbc32 -lodbccp32
 */
 import "C"
+
 import (
 	"flag"
 	"fmt"
@@ -98,7 +99,7 @@ func driverString(path string) string {
 		dll = path + "\\" + dll
 	}
 
-	return "inventree-kom2\000Driver=" + dll + "\000Setup=" + dll + "\000"
+	return "inventree-kom2\000Driver=" + dll + "\000Setup=" + dll + "\000ConnectFunctions=YNN\000"
 }
 
 func getInstallPath() (string, error) {
@@ -114,7 +115,7 @@ func getInstallPath() (string, error) {
 	}
 
 	fmt.Print(pathLen)
-	//return C.GoStringN((*C.char)(path), C.int(pathLen)), nil
+	// return C.GoStringN((*C.char)(path), C.int(pathLen)), nil
 	return C.GoString((*C.char)(path)), nil
 }
 
@@ -216,7 +217,7 @@ func main() {
 			panic(err)
 		}
 		configDataSource(removeDsn)
-		driver := "inventree-kom2\000Driver=" + path + "kom2.dll\000Setup=" + path + "kom2.dll\000"
+		driver := driverString(path)
 		var count C.ulong
 		if C.SQLRemoveDriver(C.CString(driver), 1, &count) != 1 {
 			panic(getSQLInstallerError())
@@ -226,5 +227,4 @@ func main() {
 		fmt.Println(subcommandMsg)
 		os.Exit(1)
 	}
-
 }
