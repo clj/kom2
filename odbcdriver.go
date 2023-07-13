@@ -911,7 +911,7 @@ func SQLFreeHandle(HandleType C.SQLSMALLINT, Handle C.SQLHANDLE) C.SQLRETURN {
 //export SQLTables
 func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C.SQLSMALLINT, SchemaName *C.SQLCHAR, NameLength2 C.SQLSMALLINT, TableName *C.SQLCHAR, NameLength3 C.SQLSMALLINT, TableType *C.SQLCHAR, NameLength4 C.SQLSMALLINT) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
-	log := s.log.With().Str("fn", "SQLFetchScroll").Logger()
+	log := s.log.With().Str("fn", "SQLTables").Logger()
 
 	s.def = []*desc{
 		{name: "TABLE_CAT", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
