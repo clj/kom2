@@ -147,8 +147,8 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 	fetchParametersStr = conStrArg("fetchparameters", fetchParametersStr)
 	fetchMetadataStr = conStrArg("fetchparameters", fetchMetadataStr)
 	logFile = conStrArg("logfile", logFile)
-	logFormat = conStrArg("logformat", logFormat)
-	logLevel = conStrArg("loglevel", logLevel)
+	logFormat = strings.ToLower(conStrArg("logformat", logFormat))
+	logLevel = strings.ToLower(conStrArg("loglevel", logLevel))
 
 	if logFile != "" {
 		file, _ := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
