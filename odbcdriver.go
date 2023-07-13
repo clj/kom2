@@ -762,6 +762,8 @@ func SQLGetDiagRec(
 
 //export SQLAllocHandle
 func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHandlePtr *C.SQLHANDLE) C.SQLRETURN {
+	var log zerolog.Logger
+
 	switch HandleType {
 	case C.SQL_HANDLE_ENV:
 		envHandle := environmentHandle{}
@@ -774,15 +776,20 @@ func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHan
 		connHandle.init(envHandle)
 		handle := cgo.NewHandle(&connHandle)
 		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
+		log = connHandle.log.With().Str("fn", "SQLAllocHandle").Str("handle_type", "SQL_HANDLE_DBC").Logger()
 	case C.SQL_HANDLE_STMT:
 		connHandle := cgo.Handle(InputHandle).Value().(*connectionHandle)
 		stmtHandle := statementHandle{}
 		stmtHandle.init(connHandle)
 		handle := cgo.NewHandle(&stmtHandle)
 		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
+		log = stmtHandle.log.With().Str("fn", "SQLAllocHandle").Str("handle_type", "SQL_HANDLE_STMT").Logger()
 	default:
+		log.Info().Str("return", "SQL_SUCCESS").Send()
 		return C.SQL_ERROR
 	}
+
+	log.Info().Str("return", "SQL_SUCCESS").Send()
 	return C.SQL_SUCCESS
 }
 
@@ -949,6 +956,7 @@ func SQLColumns(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 
 	tableName := toGoString(TableName, NameLength3)
 
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	log := s.log.With().Str("fn", "SQLColumns").Dict("args", zerolog.Dict().Str("TableName", tableName)).Logger()
 
 	s.def = []*desc{
 		{name: "TABLE_CAT", dataType: C.SQL_VARCHAR, nullable: C.SQL_NULLABLE},
@@ -991,6 +999,7 @@ func SQLColumns(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 
 		"IS_NULLABLE":   "NO",
 	}))
 
+	log.Info().Str("return", "SQL_SUCCESS").Send()
 	return C.SQL_SUCCESS
 }
 
@@ -1050,8 +1059,12 @@ func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetT
 	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN,
 ) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	log := s.log.With().Str("fn", "SQLBindCol").Dict("args", zerolog.Dict().Uint("ColumnNumber", uint(ColumnNumber))).Logger()
+
 	if s.binds == nil {
-		s.binds = make([]*bind, len(s.data[0]))
+		length := len(s.data[0])
+		s.binds = make([]*bind, length)
+		log.Debug().Int("len", length).Msg("creating binds array")
 	}
 
 	s.binds[ColumnNumber-1] = &bind{
@@ -1061,15 +1074,15 @@ func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetT
 		StrLen_or_IndPtr: StrLen_or_IndPtr,
 	}
 
+	log.Info().Str("return", "SQL_SUCCESS").Send()
 	return C.SQL_SUCCESS
 }
 
 //export SQLFetchScroll
 func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, FetchOffset C.SQLLEN) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
-	log := s.log.With().Str("fn", "SQLFetchScroll").Logger()
-
 	s.index = s.index + 1
+	log := s.log.With().Str("fn", "SQLFetchScroll").Int("index", s.index).Logger()
 
 	if s.index >= len(s.data) {
 		log.Info().Str("return", "SQL_NO_DATA").Send()
@@ -1077,10 +1090,12 @@ func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, 
 	}
 
 	if s.binds != nil {
+		log.Debug().Msg("populating binds")
 		s.populateBinds()
 	}
 
 	if s.rowsFetchedPtr != nil {
+		log.Debug().Msg("setting rowsFetchedPtr")
 		*s.rowsFetchedPtr = 1
 	}
 
@@ -1092,19 +1107,24 @@ func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, 
 func SQLFetch(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	s.index = s.index + 1
+	log := s.log.With().Str("fn", "SQLFetch").Int("index", s.index).Logger()
 
 	if s.index >= len(s.data) {
+		log.Info().Str("return", "SQL_NO_DATA").Send()
 		return C.SQL_NO_DATA
 	}
 
 	if s.binds != nil {
+		log.Debug().Msg("populating binds")
 		s.populateBinds()
 	}
 
 	if s.rowsFetchedPtr != nil {
+		log.Debug().Msg("setting rowsFetchedPtr")
 		*s.rowsFetchedPtr = 1
 	}
 
+	log.Info().Str("return", "SQL_SUCCESS").Send()
 	return C.SQL_SUCCESS
 }
 
@@ -1242,9 +1262,11 @@ func SQLGetData(StatementHandle C.SQLHSTMT, Col_or_Param_Num C.SQLUSMALLINT, Tar
 	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN,
 ) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	log := s.log.With().Str("fn", "SQLGetData").Dict("args", zerolog.Dict().Uint("Col_or_Param_Num", uint(Col_or_Param_Num))).Int("index", s.index).Logger()
 
 	populateData(s.data[s.index][Col_or_Param_Num-1], TargetType, TargetValuePtr, BufferLength, StrLen_or_IndPtr)
 
+	log.Info().Str("return", "SQL_SUCCESS").Send()
 	return C.SQL_SUCCESS
 }
 
