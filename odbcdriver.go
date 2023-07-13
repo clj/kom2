@@ -349,7 +349,7 @@ type connectionHandle struct {
 
 func (c *connectionHandle) init(envHandle *environmentHandle) {
 	c.env = envHandle
-	c.log = zerolog.Nop().With().Timestamp().Logger()
+	c.log = zerolog.Nop().With().Timestamp().EmbedObject(c).Logger()
 }
 
 func (c *connectionHandle) MarshalZerologObject(e *zerolog.Event) {
@@ -694,7 +694,7 @@ type statementHandle struct {
 func (s *statementHandle) init(connHandle *connectionHandle) {
 	s.conn = connHandle
 	s.index = -1
-	s.log = connHandle.log.With().Hex("handle_conn", addressBytes(unsafe.Pointer(s))).Logger()
+	s.log = connHandle.log.With().Hex("handle_stmt", addressBytes(unsafe.Pointer(s))).Logger()
 }
 
 func (s *statementHandle) populateBinds() {
