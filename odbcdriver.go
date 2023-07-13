@@ -1006,30 +1006,40 @@ func SQLColumns(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 
 //export SQLSetStmtAttr
 func SQLSetStmtAttr(StatementHandle C.SQLHSTMT, Attribute C.SQLINTEGER, ValuePtr C.SQLPOINTER, StringLength C.SQLINTEGER) C.SQLRETURN {
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	log := s.log.With().Str("fn", "SQLSetStmtAttr").Dict("args", zerolog.Dict().Int("Attribute", int(Attribute)).Hex("ValuePtr", addressBytes(unsafe.Pointer(ValuePtr))).Int("StringLength", int(StringLength))).Logger()
 
 	switch Attribute {
 	case C.SQL_ATTR_ROW_ARRAY_SIZE:
 		if uintptr(ValuePtr) != 1 {
 			// XXX set error
+			log.Info().Str("return", "SQL_ERROR").Send()
 			return C.SQL_ERROR
 		}
+		log.Info().Str("return", "SQL_SUCCESS").Send()
 		return C.SQL_SUCCESS
 	case C.SQL_ATTR_ROWS_FETCHED_PTR:
 		s.rowsFetchedPtr = (*C.SQLULEN)(ValuePtr)
+		log.Debug().Msg("set rowsFetchedPtr")
+		log.Info().Str("return", "SQL_ERROR").Send()
 		return C.SQL_SUCCESS
 	case C.SQL_ATTR_CURSOR_TYPE:
 		if uintptr(ValuePtr) != 1 {
 			// XXX set error
+			log.Info().Str("return", "SQL_ERROR").Send()
 			return C.SQL_ERROR
 		}
+		log.Info().Str("return", "SQL_ERROR").Send()
 		return C.SQL_SUCCESS
 	case C.SQL_ATTR_PARAMSET_SIZE:
 		if uintptr(ValuePtr) != 1 {
 			// XXX set error
+			log.Info().Str("return", "SQL_ERROR").Send()
 			return C.SQL_ERROR
 		}
+		log.Info().Str("return", "SQL_ERROR").Send()
 		return C.SQL_SUCCESS
 	}
+	log.Info().Str("return", "SQL_ERROR").Send()
 	return C.SQL_ERROR
 }
 
