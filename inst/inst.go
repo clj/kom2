@@ -99,7 +99,7 @@ func driverString(path string) string {
 		dll = path + "\\" + dll
 	}
 
-	return "inventree-kom2\000Driver=" + dll + "\000Setup=" + dll + "\000ConnectFunctions=YNN\000"
+	return "inventree-kom2\000Driver=" + dll + "\000Setup=" + dll + "\000ConnectFunctions=YYN\000"
 }
 
 func getInstallPath() (string, error) {
