@@ -1452,5 +1452,13 @@ func SQLBindParameter(
 
 //export SQLSetEnvAttr
 func SQLSetEnvAttr(EnvironmentHandle C.SQLHENV, Attribute C.SQLINTEGER, ValuePtr C.SQLPOINTER, StringLength C.SQLINTEGER) C.SQLRETURN {
-	return C.SQL_SUCCESS
+	switch Attribute {
+	case C.SQL_ATTR_ODBC_VERSION:
+		if int(uintptr(ValuePtr)) == C.SQL_OV_ODBC3 {
+			return C.SQL_SUCCESS
+		}
+	default:
+		return C.SQL_ERROR
+	}
+	return C.SQL_ERROR
 }
