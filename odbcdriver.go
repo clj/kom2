@@ -1464,3 +1464,18 @@ func SQLSetEnvAttr(EnvironmentHandle C.SQLHENV, Attribute C.SQLINTEGER, ValuePtr
 	}
 	return C.SQL_ERROR
 }
+
+//export SQLGetStmtAttr
+func SQLGetStmtAttr(
+	StatementHandle C.SQLHSTMT,
+	Attribute C.SQLINTEGER,
+	ValuePtr C.SQLPOINTER,
+	BufferLength C.SQLINTEGER,
+	StringLengthPtr *C.SQLINTEGER,
+) C.SQLRETURN {
+	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	log := s.log.With().Str("fn", "SQLGetStmtAttr").Dict("args", zerolog.Dict().Uint("Attribute", uint(Attribute))).Int("index", s.index).Logger()
+
+	log.Info().Str("return", "SQL_ERROR").Send()
+	return C.SQL_ERROR
+}
