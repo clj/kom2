@@ -1476,6 +1476,21 @@ func SQLGetStmtAttr(
 	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	log := s.log.With().Str("fn", "SQLGetStmtAttr").Dict("args", zerolog.Dict().Uint("Attribute", uint(Attribute))).Int("index", s.index).Logger()
 
+	switch Attribute {
+	case C.SQL_ATTR_IMP_ROW_DESC:
+		fallthrough
+	case C.SQL_ATTR_APP_ROW_DESC:
+		fallthrough
+	case C.SQL_ATTR_IMP_PARAM_DESC:
+		fallthrough
+	case C.SQL_ATTR_APP_PARAM_DESC:
+		value := C.SQLHDESC(uintptr(0xdeadbeef))
+		*((*C.SQLHDESC)(ValuePtr)) = value
+		*StringLengthPtr = C.int(unsafe.Sizeof(value))
+		log.Info().Str("return", "SQL_SUCCESS").Send()
+		return C.SQL_SUCCESS
+	}
+
 	log.Info().Str("return", "SQL_ERROR").Send()
 	return C.SQL_ERROR
 }
