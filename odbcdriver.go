@@ -800,14 +800,14 @@ func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHan
 		connHandle.init(envHandle)
 		handle := cgo.NewHandle(&connHandle)
 		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
-		log = connHandle.log.With().Str("fn", "SQLAllocHandle").Str("handle_type", "SQL_HANDLE_DBC").Logger()
+		log = connHandle.log.With().Str("fn", "SQLAllocHandle").Str("handle_type", "SQL_HANDLE_DBC").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
 	case C.SQL_HANDLE_STMT:
 		connHandle := cgo.Handle(InputHandle).Value().(*connectionHandle)
 		stmtHandle := statementHandle{}
 		stmtHandle.init(connHandle)
 		handle := cgo.NewHandle(&stmtHandle)
 		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
-		log = stmtHandle.log.With().Str("fn", "SQLAllocHandle").Str("handle_type", "SQL_HANDLE_STMT").Logger()
+		log = stmtHandle.log.With().Str("fn", "SQLAllocHandle").Str("handle_type", "SQL_HANDLE_STMT").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
 	default:
 		log.Info().Str("return", "SQL_SUCCESS").Send()
 		return C.SQL_ERROR
