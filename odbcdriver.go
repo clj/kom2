@@ -1374,6 +1374,8 @@ func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePt
 		returnString("03.00")
 	case C.SQL_IDENTIFIER_QUOTE_CHAR:
 		returnString("\"")
+	case C.SQL_GETDATA_EXTENSIONS:
+		*((*C.SQLUINTEGER)(InfoValuePtr)) = C.SQL_GD_ANY_COLUMN | C.SQL_GD_ANY_ORDER | C.SQL_GD_BOUND
 	default:
 		log.Info().Str("return", "SQL_ERROR").Send()
 		return C.SQL_ERROR
