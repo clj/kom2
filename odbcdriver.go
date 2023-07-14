@@ -116,14 +116,18 @@ func toGoString[T C.int | C.short | C.long](str *C.SQLCHAR, len T) string {
 
 func setupLogging(log zerolog.Logger, logFile, logFormat, logLevel string) zerolog.Logger {
 	if logFile != "" {
-		file, _ := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			fmt.Printf("Error setting up logging: %s", err)
+		}
+		if file != nil {
+			if logFormat == "pretty" {
+				output := zerolog.ConsoleWriter{Out: file, TimeFormat: time.RFC3339}
 
-		if logFormat == "pretty" {
-			output := zerolog.ConsoleWriter{Out: file, TimeFormat: time.RFC3339}
-
-			log = log.Output(output)
-		} else {
-			log = log.Output(file)
+				log = log.Output(output)
+			} else {
+				log = log.Output(file)
+			}
 		}
 	}
 
