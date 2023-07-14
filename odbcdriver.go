@@ -32,6 +32,15 @@ import (
 // #include <sqlext.h>
 import "C"
 
+var (
+	Version   string = "dev"
+	Commit    string = "?"
+	BuildDate string = "?"
+	LogFile   string = ""
+	LogFormat string = ""
+	LogLevel  string = ""
+)
+
 func Convert(value any, t string) (any, error) {
 	switch t {
 	case "int":
@@ -105,6 +114,45 @@ func toGoString[T C.int | C.short | C.long](str *C.SQLCHAR, len T) string {
 	return C.GoStringN((*C.char)(unsafe.Pointer(str)), C.int(len))
 }
 
+func setupLogging(log zerolog.Logger, logFile, logFormat, logLevel string) zerolog.Logger {
+	if logFile != "" {
+		file, _ := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+
+		if logFormat == "pretty" {
+			output := zerolog.ConsoleWriter{Out: file, TimeFormat: time.RFC3339}
+
+			log = log.Output(output)
+		} else {
+			log = log.Output(file)
+		}
+	}
+
+	switch logLevel {
+	case "debug":
+		log = log.Level(zerolog.DebugLevel)
+	case "info":
+		log = log.Level(zerolog.InfoLevel)
+	case "warn":
+		log = log.Level(zerolog.WarnLevel)
+	case "error":
+		log = log.Level(zerolog.ErrorLevel)
+	case "fatal":
+		log = log.Level(zerolog.FatalLevel)
+	case "panic":
+		log = log.Level(zerolog.PanicLevel)
+	case "none":
+		log = log.Level(zerolog.NoLevel)
+	case "disabled":
+		log = log.Level(zerolog.Disabled)
+	case "trace":
+		log = log.Level(zerolog.TraceLevel)
+	default:
+		log = log.Level(zerolog.InfoLevel)
+	}
+
+	return log
+}
+
 func (connHandle *connectionHandle) initConnection(dsn, connectionString, userName, password string) C.SQLRETURN {
 	args := make(map[string]string)
 	for _, arg := range strings.Split(connectionString, ";") {
@@ -150,39 +198,8 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 	logFormat = strings.ToLower(conStrArg("logformat", logFormat))
 	logLevel = strings.ToLower(conStrArg("loglevel", logLevel))
 
-	if logFile != "" {
-		file, _ := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-
-		if logFormat == "pretty" {
-			output := zerolog.ConsoleWriter{Out: file, TimeFormat: time.RFC3339}
-
-			connHandle.log = connHandle.log.Output(output)
-		} else {
-			connHandle.log = connHandle.log.Output(file)
-		}
-	}
-
-	switch logLevel {
-	case "debug":
-		connHandle.log = connHandle.log.Level(zerolog.DebugLevel)
-	case "info":
-		connHandle.log = connHandle.log.Level(zerolog.InfoLevel)
-	case "warn":
-		connHandle.log = connHandle.log.Level(zerolog.WarnLevel)
-	case "error":
-		connHandle.log = connHandle.log.Level(zerolog.ErrorLevel)
-	case "fatal":
-		connHandle.log = connHandle.log.Level(zerolog.FatalLevel)
-	case "panic":
-		connHandle.log = connHandle.log.Level(zerolog.PanicLevel)
-	case "none":
-		connHandle.log = connHandle.log.Level(zerolog.NoLevel)
-	case "disabled":
-		connHandle.log = connHandle.log.Level(zerolog.Disabled)
-	case "trace":
-		connHandle.log = connHandle.log.Level(zerolog.TraceLevel)
-	default:
-		connHandle.log = connHandle.log.Level(zerolog.InfoLevel)
+	if LogFile == "" {
+		connHandle.log = setupLogging(connHandle.log, logFile, logFormat, logLevel)
 	}
 
 	// Then explicit username and password is highest
@@ -350,6 +367,9 @@ type connectionHandle struct {
 func (c *connectionHandle) init(envHandle *environmentHandle) {
 	c.env = envHandle
 	c.log = zerolog.Nop().With().Timestamp().EmbedObject(c).Logger()
+	if LogFile != "" {
+		c.log = setupLogging(c.log, LogFile, LogFormat, LogLevel)
+	}
 }
 
 func (c *connectionHandle) MarshalZerologObject(e *zerolog.Event) {
