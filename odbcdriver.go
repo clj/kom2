@@ -1347,19 +1347,35 @@ func SQLFreeStmt(StatementHandle C.SQLHSTMT, Option C.SQLUSMALLINT) C.SQLRETURN 
 func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePtr C.SQLPOINTER,
 	BufferLength C.SQLSMALLINT, StringLengthPtr *C.SQLSMALLINT,
 ) C.SQLRETURN {
-	switch InfoType {
-	case C.SQL_DRIVER_ODBC_VER:
-		value := "03.00"
+	c := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
+	log := c.log.With().Str("fn", "SQLGetInfo").Dict("args", zerolog.Dict().Uint("InfoType", uint(InfoType)).Hex("InfoValuePtr", addressBytes(unsafe.Pointer(InfoValuePtr)))).Logger()
+
+	returnString := func(str string) {
+		if len(str) >= int(BufferLength) {
+			str = str[:BufferLength-1]
+		}
 		if InfoValuePtr != nil {
 			dst := (*C.char)(InfoValuePtr)
-			src := C.CString(value + "\x00")
+			src := C.CString(str + "\x00")
 			defer C.free(unsafe.Pointer(src))
-			C.strncpy(dst, src, C.size_t(len(value))+1)
+			C.strncpy(dst, src, C.size_t(len(str)+1))
 		}
-		*StringLengthPtr = C.SQLSMALLINT(len(value))
+		if StringLengthPtr != nil {
+			*StringLengthPtr = C.SQLSMALLINT(len(str))
+		}
+	}
+
+	switch InfoType {
+	case C.SQL_DRIVER_ODBC_VER:
+		returnString("03.00")
+	case C.SQL_IDENTIFIER_QUOTE_CHAR:
+		returnString("\"")
 	default:
+		log.Info().Str("return", "SQL_ERROR").Send()
 		return C.SQL_ERROR
 	}
+
+	log.Info().Str("return", "SQL_SUCCESS").Send()
 	return C.SQL_SUCCESS
 }
 
