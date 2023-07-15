@@ -148,14 +148,14 @@ Section "-Main (required)" InstallationInfo
  WriteUninstaller "$INSTDIR\Uninstall.exe"
 
  DetailPrint "Adding ODBC driver"
- nsExec::ExecToLog '"$INSTDIR\inst.exe" install'
+ nsExec::ExecToLog '"$INSTDIR\inst.exe" install --dll=${DLL}'
 SectionEnd
 
 
 Section "Uninstall"
 
 DetailPrint "Removing ODBC driver"
-nsExec::ExecToLog '"$INSTDIR\inst.exe" uninstall'
+nsExec::ExecToLog '"$INSTDIR\inst.exe" uninstall --dll=${DLL}'
  
 ; Delete Files 
 RMDir /r "$INSTDIR\*" 
