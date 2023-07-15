@@ -105,8 +105,9 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body_path: ${{ github.workspace }}/release-notes/${{ env.release_name }}.md
-          files:
-            artifact/kicad-odbc-middleware2-*.*
+          files: |
+            artifact/kicad-odbc-middleware2-*.zip
+            artifact/kicad-odbc-middleware2-*.exe
           fail_on_unmatched_files: true
         if: startsWith(github.ref_name, 'release-')
 
@@ -115,4 +116,5 @@ jobs:
         with:
           name: test-release
           path: |
-            artifact/kicad-odbc-middleware2-*.*
+            artifact/kicad-odbc-middleware2-*.zip
+            artifact/kicad-odbc-middleware2-*.exe
