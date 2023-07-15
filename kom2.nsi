@@ -7,11 +7,14 @@ CRCCheck On
 !ifndef DLL
   !define DLL "kom2.dll"
 !endif
+!ifndef OUTFILE
+  !define OUTFILE "kom2-installer.exe"
+!endif
 
 !include "MUI.nsh"
 !include "Sections.nsh"
 
-OutFile "kom2-installer.exe"
+OutFile "${OUTFILE}"
 
 ShowInstDetails show
 AutoCloseWindow false
@@ -22,22 +25,22 @@ AutoCloseWindow false
 ; Exch $R1
 ; Push $R2
 ; Push $R3
- 
+
 ;  StrCpy $R3 $R0
 ;  StrCpy $R0 -1
 ;  IntOp $R0 $R0 + 1
 ;   StrCpy $R2 $R3 1 $R0
 ;   StrCmp $R2 "" +2
 ;   StrCmp $R2 $R1 +2 -3
- 
+
 ;  StrCpy $R0 -1
- 
+
 ; Pop $R3
 ; Pop $R2
 ; Pop $R1
 ; Exch $R0
 ; FunctionEnd
- 
+
 ; !macro IndexOf Var Str Char
 ; Push "${Char}"
 ; Push "${Str}"
@@ -45,29 +48,29 @@ AutoCloseWindow false
 ; Pop "${Var}"
 ; !macroend
 ; !define IndexOf "!insertmacro IndexOf"
- 
+
 Function RIndexOf
 Exch $R0
 Exch
 Exch $R1
 Push $R2
 Push $R3
- 
+
  StrCpy $R3 $R0
  StrCpy $R0 0
  IntOp $R0 $R0 + 1
   StrCpy $R2 $R3 1 -$R0
   StrCmp $R2 "" +2
   StrCmp $R2 $R1 +2 -3
- 
+
  StrCpy $R0 -1
- 
+
 Pop $R3
 Pop $R2
 Pop $R1
 Exch $R0
 FunctionEnd
- 
+
 !macro RIndexOf Var Str Char
 Push "${Char}"
 Push "${Str}"
@@ -128,7 +131,7 @@ Section "-Main (required)" InstallationInfo
 ; Add files
  SetOutPath "$INSTDIR"
   File "inst.exe"
-  File "${DLL}"
+  File /oname=kom2.dll "${DLL}"
   File "LICENSE"
   File "README.md"
 
@@ -148,29 +151,29 @@ Section "-Main (required)" InstallationInfo
  WriteUninstaller "$INSTDIR\Uninstall.exe"
 
  DetailPrint "Adding ODBC driver"
- nsExec::ExecToLog '"$INSTDIR\inst.exe" install --dll=${DLL}'
+ nsExec::ExecToLog '"$INSTDIR\inst.exe" install'
 SectionEnd
 
 
 Section "Uninstall"
 
 DetailPrint "Removing ODBC driver"
-nsExec::ExecToLog '"$INSTDIR\inst.exe" uninstall --dll=${DLL}'
- 
-; Delete Files 
-RMDir /r "$INSTDIR\*" 
-RMDir /r "$INSTDIR\*.*" 
- 
+nsExec::ExecToLog '"$INSTDIR\inst.exe" uninstall'
+
+; Delete Files
+RMDir /r "$INSTDIR\*"
+RMDir /r "$INSTDIR\*.*"
+
 ; Remove the installation directory
 RMDir /r "$INSTDIR"
 
 ; Remove start menu/program files subdirectory
 
 RMDir /r "$SMPROGRAMS\${PROD_NAME0}"
-  
+
 ; Delete Uninstaller And Unistall Registry Entries
 DeleteRegKey HKEY_LOCAL_MACHINE "SOFTWARE\${PROD_NAME0}"
 DeleteRegKey HKEY_LOCAL_MACHINE \
     "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PROD_NAME0}"
-  
+
 SectionEnd

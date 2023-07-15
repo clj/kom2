@@ -22,6 +22,7 @@ jobs:
             arch: amd64
           - os: windows-latest
             output: kom2-windows-amd64.dll
+            installer: kom2-windows-amd64.exe
 
     runs-on: ${{ matrix.os }}
 
@@ -64,7 +65,7 @@ jobs:
         uses: joncloud/makensis-action@v4
         with:
           script-file: "kom2.nsi"
-          arguments: "/V4 /DDLL=${{ matrix.output }}"
+          arguments: "/V4 /DDLL=${{ matrix.output }} /DOUTFILE=${{ matrix.installer }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -105,7 +106,7 @@ jobs:
         with:
           body_path: ${{ github.workspace }}/release-notes/${{ env.release_name }}.md
           files:
-            artifact/kicad-odbc-middleware2-*.zip
+            artifact/kicad-odbc-middleware2-*.*
           fail_on_unmatched_files: true
         if: startsWith(github.ref_name, 'release-')
 
