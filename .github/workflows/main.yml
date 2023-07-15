@@ -64,7 +64,7 @@ jobs:
           HOMEBREW_NO_INSTALL_CLEANUP=1 brew reinstall $(brew --cache --bottle-tag=arm64_monterey unixodbc)
 
       - name: Install arm64 cross compiler on linux
-        if: matrix.os == 'linux-latest' && matrix.arch == 'arm64'
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
           wget https://musl.cc/aarch64-linux-musl-cross.tgz
           tar -xvf ~/aarch64-linux-musl-cross.tgz -C /opt
