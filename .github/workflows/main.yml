@@ -59,6 +59,12 @@ jobs:
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
+      - name: Create Windows installer
+        if: matrix.os == 'windows-latest'
+        uses: joncloud/makensis-action@v4
+        with:
+          script-file: "kom2.nsi"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
