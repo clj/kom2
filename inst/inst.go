@@ -208,14 +208,14 @@ func main() {
 	case "install":
 		var err error
 		var path string
-		if path, err = getInstallPath(dll); err != nil {
+		if path, err = getInstallPath(driverName, dll); err != nil {
 			panic(err)
 		}
 		installCmd.Parse(os.Args[2:])
 		if err = install(driverName, dll, path); err != nil {
 			panic(err)
 		}
-		configDataSource(removeDsn)
+		configDataSource(driverName, dsnName, removeDsn)
 		if err = configDataSource(driverName, dsnName, addDsn); err != nil {
 			panic(err)
 		}
@@ -226,7 +226,7 @@ func main() {
 		if path, err = getInstallPath(driverName, dll); err != nil {
 			panic(err)
 		}
-		configDataSource(removeDsn)
+		configDataSource(driverName, dsnName, removeDsn)
 		driver := driverString(driverName, dll, path)
 		var count C.ulong = 1
 		for count > 0 {
