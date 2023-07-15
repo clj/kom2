@@ -29,7 +29,10 @@ Contributions welcome.
 
 ### Windows
 
-Contributions welcome.
+Download the latest kicad-odbc-middleware2 Windows installer from [Releases](https://github.com/clj/kom2/releases) and run it.
+
+* For Intel/Amd based Windows PCs:
+  * kicad-odbc-middleware2-**windows**-**amd64**-VERSION.exe
 
 ### KiCad Configuration
 
@@ -44,7 +47,7 @@ Create a `inventree.kicad_dbl` file with a valid configuration (see the [KiCad d
     "description": "Components pulled from InvenTree",
     "source": {
         "type": "odbc",
-        "connection_string": "Driver=/.../kom2.dylib;username=reader;password=readonly;server=https://demo.inventree.org",
+        "connection_string": "Driver=SEE_BELOW;username=reader;password=readonly;server=https://demo.inventree.org",
         "timeout_seconds": 2
     },
     "libraries": [
@@ -89,7 +92,22 @@ Create a `inventree.kicad_dbl` file with a valid configuration (see the [KiCad d
 
 The InvenTree Demo server does not seem to have IPNs for everything though, so the key should probably be `pk` instead if that is the case (i.e. if IPN isn't unique).
 
-#### Connection String Options
+#### Connection String
+
+The `Driver` argument of the connection string is used to find the kom2 driver and the exact value used is platform specific.
+##### Windows
+
+Use `Driver=kom2` when the driver was installed using the downloaded Windows installer.
+
+##### Linux
+
+Use `Driver=/path/to/kom2.so`, using the correct path where the driver was downloaded and extracted.
+
+##### macOS
+
+Use `Driver=/path/to/kom2.dylib`, using the correct path where the driver was downloaded and extracted.
+
+##### Other Connection String Options
 
 * `username`
     * InvenTree username
@@ -98,7 +116,7 @@ The InvenTree Demo server does not seem to have IPNs for everything though, so t
 * `server`
     * The InvenTree server to connect to
 * `apitoken`
-    * The optional API token (not required if `username` and `password` is used instead)
+    * The optional API token (not required when `username` and `password` are used)
 
 ### Add the library to KiCad:
 
