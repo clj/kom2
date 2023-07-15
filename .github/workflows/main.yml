@@ -12,7 +12,7 @@ jobs:
         include:
           - os: ubuntu-latest
             output: kom2-linux-arm64.so
-            env: CGO_ENABLED=1 GOARCH=arm64 CC=/opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
+            env: CGO_ENABLED=1 GOARCH=arm64 CC=/opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc CGO_CFLAGS=-I/opt/src/unixODBC-2.3.11/include
             arch: arm64
           - os: ubuntu-latest
             output: kom2-linux-amd64.so
@@ -63,11 +63,14 @@ jobs:
           brew fetch --force --bottle-tag=arm64_monterey unixodbc
           HOMEBREW_NO_INSTALL_CLEANUP=1 brew reinstall $(brew --cache --bottle-tag=arm64_monterey unixodbc)
 
-      - name: Install arm64 cross compiler on linux
+      - name: Install arm64 cross compiler and unixodbc on linux
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
           curl -sLO https://musl.cc/aarch64-linux-musl-cross.tgz
           tar -xvf aarch64-linux-musl-cross.tgz -C /opt
+          curl -sLO https://github.com/lurcher/unixODBC/releases/download/2.3.11/unixODBC-2.3.11.tar.gz
+          mkdir -P /opt/src
+          tar -xvf unixODBC-2.3.11.tar.gz -C /opt/src
 
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
