@@ -12,7 +12,7 @@ jobs:
         include:
           - os: ubuntu-latest
             output: kom2-linux-arm64.so
-            env: CGO_ENABLED=1 GOARCH=arm64 CC=aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
+            env: CGO_ENABLED=1 GOARCH=arm64 CC=/opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
             arch: arm64
           - os: ubuntu-latest
             output: kom2-linux-amd64.so
@@ -67,7 +67,7 @@ jobs:
         if: matrix.os == 'linux-latest' && matrix.arch == 'arm64'
         run: |
           wget https://musl.cc/aarch64-linux-musl-cross.tgz
-          tar -xvf ~/aarch64-linux-musl-cross.tgz
+          tar -xvf ~/aarch64-linux-musl-cross.tgz -C /opt
 
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
