@@ -72,7 +72,7 @@ jobs:
           mkdir -p /opt/src
           tar -xf unixODBC-2.3.11.tar.gz -C /opt/src
           cd /opt/src/unixODBC-2.3.11
-          ./configure CC=/opt/aarch64-linux-musl-cross/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc \
+          ./configure CC=/opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc \
             --build=x86_64-linux-gnu \
             --host=aarch64-linux-gnu \
             --target=aarch64-linux-gnu \
