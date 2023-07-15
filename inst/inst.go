@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"unsafe"
 )
 
 /*
@@ -142,6 +143,13 @@ func copyFile(src, dst string) (int64, error) {
 	return nBytes, err
 }
 
+func deleteFile(path string) {
+	cPath := C.CString(path)
+	defer C.free(unsafe.Pointer(cPath))
+
+	C.DeleteFile(cPath)
+}
+
 func install(installPath string) error {
 	const maxPath = 500
 	var pathLen C.WORD
@@ -218,6 +226,7 @@ func main() {
 		if C.SQLRemoveDriver(C.CString(driver), 1, &count) != 1 {
 			panic(getSQLInstallerError())
 		}
+		deleteFile(path)
 	default:
 		fmt.Println(subcommandMsg)
 		os.Exit(1)
