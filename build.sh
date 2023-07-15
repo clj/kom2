@@ -14,6 +14,8 @@ esac
 
 set -x
 
+go generate
+
 go build \
     -buildmode=c-shared \
     -o kom2.$ext \
