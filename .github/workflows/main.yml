@@ -12,7 +12,7 @@ jobs:
         include:
           - os: ubuntu-latest
             output: kom2-linux-arm64.so
-            env: CGO_ENABLED=1 GOARCH=arm64 CC=/opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc CGO_CFLAGS=-I/opt/src/unixODBC-2.3.11/include
+            env: CGO_ENABLED=1 GOARCH=arm64 CC=/opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc CGO_CFLAGS=-I/opt/unixODBC-2.3.11/include
             arch: arm64
           - os: ubuntu-latest
             output: kom2-linux-amd64.so
@@ -71,6 +71,8 @@ jobs:
           curl -sLO https://github.com/lurcher/unixODBC/releases/download/2.3.11/unixODBC-2.3.11.tar.gz
           mkdir -p /opt/src
           tar -xf unixODBC-2.3.11.tar.gz -C /opt/src
+          cd /opt/src/unixODBC-2.3.11
+          ./configure --prefix=/opt/unixODBC-2.3.11 && make && make install
 
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
