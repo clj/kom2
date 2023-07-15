@@ -69,7 +69,7 @@ jobs:
           curl -sLO https://musl.cc/aarch64-linux-musl-cross.tgz
           tar -xvf aarch64-linux-musl-cross.tgz -C /opt
           curl -sLO https://github.com/lurcher/unixODBC/releases/download/2.3.11/unixODBC-2.3.11.tar.gz
-          mkdir -P /opt/src
+          mkdir -p /opt/src
           tar -xvf unixODBC-2.3.11.tar.gz -C /opt/src
 
       - name: Build
