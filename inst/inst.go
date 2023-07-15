@@ -222,10 +222,13 @@ func main() {
 		}
 		configDataSource(removeDsn)
 		driver := driverString(path)
-		var count C.ulong
-		if C.SQLRemoveDriver(C.CString(driver), 1, &count) != 1 {
-			panic(getSQLInstallerError())
+		var count C.ulong = 1
+		for count > 0 {
+			if C.SQLRemoveDriver(C.CString(driver), 1, &count) != 1 {
+				panic(getSQLInstallerError())
+			}
 		}
+
 		deleteFile(path)
 	default:
 		fmt.Println(subcommandMsg)
