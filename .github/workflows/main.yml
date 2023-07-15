@@ -66,8 +66,8 @@ jobs:
       - name: Install arm64 cross compiler on linux
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
-          wget https://musl.cc/aarch64-linux-musl-cross.tgz
-          tar -xvf ~/aarch64-linux-musl-cross.tgz -C /opt
+          curl -sLO https://musl.cc/aarch64-linux-musl-cross.tgz
+          tar -xvf aarch64-linux-musl-cross.tgz -C /opt
 
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
