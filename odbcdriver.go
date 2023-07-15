@@ -1376,6 +1376,10 @@ func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePt
 		returnString("\"")
 	case C.SQL_GETDATA_EXTENSIONS:
 		*((*C.SQLUINTEGER)(InfoValuePtr)) = C.SQL_GD_ANY_COLUMN | C.SQL_GD_ANY_ORDER | C.SQL_GD_BOUND
+	case C.SQL_DRIVER_NAME:
+		returnString("kom2")
+	case C.SQL_DRIVER_VER:
+		returnString(fmt.Sprintf("%s %s %s", Version, Commit, BuildDate))
 	default:
 		log.Info().Str("return", "SQL_ERROR").Send()
 		return C.SQL_ERROR
