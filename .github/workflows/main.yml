@@ -67,10 +67,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
           curl -sLO https://musl.cc/aarch64-linux-musl-cross.tgz
-          tar -xvf aarch64-linux-musl-cross.tgz -C /opt
+          tar -xf aarch64-linux-musl-cross.tgz -C /opt
           curl -sLO https://github.com/lurcher/unixODBC/releases/download/2.3.11/unixODBC-2.3.11.tar.gz
           mkdir -p /opt/src
-          tar -xvf unixODBC-2.3.11.tar.gz -C /opt/src
+          tar -xf unixODBC-2.3.11.tar.gz -C /opt/src
 
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
