@@ -114,8 +114,6 @@ func getInstallPath() (string, error) {
 		return "", getSQLInstallerError()
 	}
 
-	fmt.Print(pathLen)
-	// return C.GoStringN((*C.char)(path), C.int(pathLen)), nil
 	return C.GoString((*C.char)(path)), nil
 }
 
@@ -150,7 +148,6 @@ func install(installPath string) error {
 	var usageCount C.DWORD
 
 	dst := installPath + "\\kom2.dll"
-	fmt.Printf("%s\n", dst)
 	if _, err := copyFile("kom2.dll", dst); err != nil {
 		return err
 	}
@@ -200,7 +197,6 @@ func main() {
 		if path, err = getInstallPath(); err != nil {
 			panic(err)
 		}
-		fmt.Print(path)
 		installCmd.Parse(os.Args[2:])
 		if err = install(path); err != nil {
 			panic(err)
@@ -222,7 +218,6 @@ func main() {
 		if C.SQLRemoveDriver(C.CString(driver), 1, &count) != 1 {
 			panic(getSQLInstallerError())
 		}
-		fmt.Printf("%q %s %d\n", driver, path, count)
 	default:
 		fmt.Println(subcommandMsg)
 		os.Exit(1)
