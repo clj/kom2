@@ -72,7 +72,10 @@ jobs:
           mkdir -p /opt/src
           tar -xf unixODBC-2.3.11.tar.gz -C /opt/src
           cd /opt/src/unixODBC-2.3.11
-          ./configure CC=/opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc --prefix=/opt/unixODBC-2.3.11 && make && make install
+          PATH=/opt/aarch64-linux-musl-cross/bin/ ./configure --build=x86_64-linux-gnu \
+            --host=arm-linux-gnueabihf \
+            --target=arm-linux-gnueabihf \
+            --prefix=/opt/unixODBC-2.3.11 && make && make install
 
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
