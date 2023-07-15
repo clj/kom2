@@ -4,6 +4,9 @@ CRCCheck On
 
 !define PROD_NAME "KiCad ODBC Middleware"
 !define PROD_NAME0 "KiCad ODBC Middleware"
+!ifndef DLL
+  !define DLL "kom2.dll"
+!endif
 
 !include "MUI.nsh"
 !include "Sections.nsh"
@@ -125,7 +128,7 @@ Section "-Main (required)" InstallationInfo
 ; Add files
  SetOutPath "$INSTDIR"
   File "inst.exe"
-  File "kom2.dll"
+  File "${DLL}"
   File "LICENSE"
   File "README.md"
 
