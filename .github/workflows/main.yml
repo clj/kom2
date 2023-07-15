@@ -64,6 +64,7 @@ jobs:
         uses: joncloud/makensis-action@v4
         with:
           script-file: "kom2.nsi"
+          arguments: "/V4 /DDLL=${{ matrix.output }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
