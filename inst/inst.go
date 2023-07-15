@@ -93,17 +93,15 @@ func getSQLInstallerError() *SQLInstallErrors {
 	return &errs
 }
 
-func driverString(path string) string {
-	dll := "kom2.dll"
-
+func driverString(driverName, dll, path string) string {
 	if path != "" {
 		dll = path + "\\" + dll
 	}
 
-	return "inventree-kom2\000Driver=" + dll + "\000Setup=" + dll + "\000ConnectFunctions=YYN\000"
+	return driverName + "\000Driver=" + dll + "\000Setup=" + dll + "\000ConnectFunctions=YYN\000"
 }
 
-func getInstallPath() (string, error) {
+func getInstallPath(driverName, dll string) (string, error) {
 	const maxPath = 500
 	var pathLen C.WORD
 	var usageCount C.DWORD
@@ -111,7 +109,7 @@ func getInstallPath() (string, error) {
 	path := C.malloc(C.size_t(maxPath))
 	defer C.free(path)
 
-	if C.SQLInstallDriverEx(C.CString(driverString("")), nil, C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_INQUIRY, &usageCount) != 1 {
+	if C.SQLInstallDriverEx(C.CString(driverString(driverName, dll, "")), nil, C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_INQUIRY, &usageCount) != 1 {
 		return "", getSQLInstallerError()
 	}
 
@@ -150,20 +148,20 @@ func deleteFile(path string) {
 	C.DeleteFile(cPath)
 }
 
-func install(installPath string) error {
+func install(driverName, dll, installPath string) error {
 	const maxPath = 500
 	var pathLen C.WORD
 	var usageCount C.DWORD
 
-	dst := installPath + "\\kom2.dll"
-	if _, err := copyFile("kom2.dll", dst); err != nil {
+	dst := installPath + "\\" + dll
+	if _, err := copyFile(dll, dst); err != nil {
 		return err
 	}
 
 	path := C.malloc(C.size_t(maxPath))
 	defer C.free(path)
 
-	if C.SQLInstallDriverEx(C.CString(driverString(installPath)), C.CString(installPath), C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_COMPLETE, &usageCount) != 1 {
+	if C.SQLInstallDriverEx(C.CString(driverString(driverName, dll, installPath)), C.CString(installPath), C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_COMPLETE, &usageCount) != 1 {
 		return getSQLInstallerError()
 	}
 
@@ -177,9 +175,8 @@ const (
 	removeDsn                        = C.ODBC_REMOVE_SYS_DSN
 )
 
-func configDataSource(action configDataSourceAction) error {
-	driverName := "inventree-kom2"
-	attr := "DSN=inventree-kom2\000Database=\000"
+func configDataSource(driverName, dsnName string, action configDataSourceAction) error {
+	attr := "DSN=" + dsnName + "\000Database=\000"
 
 	if C.SQLConfigDataSource(nil, C.ushort(action), C.CString(driverName), C.CString(attr)) != 1 {
 		return getSQLInstallerError()
@@ -189,8 +186,17 @@ func configDataSource(action configDataSourceAction) error {
 }
 
 func main() {
+	var dll, driverName, dsnName string
+
 	installCmd := flag.NewFlagSet("install", flag.ExitOnError)
+	installCmd.StringVar(&dll, "dll", "kom2.dll", "name of the dll")
+	installCmd.StringVar(&driverName, "driver", "kom2", "driver name")
+	installCmd.StringVar(&dsnName, "dsnName", "kom2", "dsn name")
+
 	uninstallCmd := flag.NewFlagSet("remove", flag.ExitOnError)
+	uninstallCmd.StringVar(&dll, "dll", "kom2.dll", "name of the dll")
+	uninstallCmd.StringVar(&driverName, "driver", "kom2", "driver name")
+	uninstallCmd.StringVar(&dsnName, "dsnName", "kom2", "dsn name")
 
 	if len(os.Args) < 2 {
 		fmt.Println(subcommandMsg)
@@ -202,26 +208,26 @@ func main() {
 	case "install":
 		var err error
 		var path string
-		if path, err = getInstallPath(); err != nil {
+		if path, err = getInstallPath(dll); err != nil {
 			panic(err)
 		}
 		installCmd.Parse(os.Args[2:])
-		if err = install(path); err != nil {
+		if err = install(driverName, dll, path); err != nil {
 			panic(err)
 		}
 		configDataSource(removeDsn)
-		if err = configDataSource(addDsn); err != nil {
+		if err = configDataSource(driverName, dsnName, addDsn); err != nil {
 			panic(err)
 		}
 	case "uninstall":
 		uninstallCmd.Parse(os.Args[2:])
 		var err error
 		var path string
-		if path, err = getInstallPath(); err != nil {
+		if path, err = getInstallPath(driverName, dll); err != nil {
 			panic(err)
 		}
 		configDataSource(removeDsn)
-		driver := driverString(path)
+		driver := driverString(driverName, dll, path)
 		var count C.ulong = 1
 		for count > 0 {
 			if C.SQLRemoveDriver(C.CString(driver), 1, &count) != 1 {
