@@ -113,6 +113,6 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: test-release-zips
+          name: test-release
           path: |
-            artifact/kicad-odbc-middleware2-*.zip
+            artifact/kicad-odbc-middleware2-*.*
