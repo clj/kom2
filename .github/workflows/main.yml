@@ -86,20 +86,24 @@ jobs:
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
-      - name: Install test dependencies
-        run: pip3 install pytest pyodbc
-        if: matrix.test == true
-
-      - name: Run tests
-        run: KOM2_DRIVER_NAME=./${{ matrix.output }} pytest
-        if: matrix.test == true
-
       - name: Create Windows installer
         if: matrix.os == 'windows-latest'
         uses: joncloud/makensis-action@v4
         with:
           script-file: "kom2.nsi"
           arguments: "/V4 /DDLL=${{ matrix.output }} /DOUTFILE=${{ matrix.installer }}"
+
+      - name: Install test dependencies
+        run: pip3 install pytest pyodbc
+        if: matrix.test == true
+
+      - name: Run tests
+        run: KOM2_DRIVER_NAME=./${{ matrix.output }} pytest
+        if: matrix.test == true && matrix.os != 'windows-latest'
+
+      - name: Run tests (Windows)
+        run: $GITHUB_WORKSPACE/${{ matrix.installer }} /S && KOM2_DRIVER_NAME=kom2 pytest
+        if: matrix.test == true && matrix.os == 'windows-latest'
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
