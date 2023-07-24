@@ -85,7 +85,7 @@ jobs:
         run: pip install pytest pyodbc
 
       - name: Run tests
-        run: KOM2_DRIVER_NAME=${{ matrix.output }} pytest
+        run: KOM2_DRIVER_NAME=./${{ matrix.output }} pytest
 
       - name: Create Windows installer
         if: matrix.os == 'windows-latest'
