@@ -82,7 +82,7 @@ jobs:
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
       - name: Run tests
-        run: KOM2_DRIVER_NAME=${{ matrix.output }} pytest
+        run: pip install pytest && KOM2_DRIVER_NAME=${{ matrix.output }} pytest
 
       - name: Create Windows installer
         if: matrix.os == 'windows-latest'
