@@ -81,8 +81,11 @@ jobs:
       - name: Build
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
+      - name: Install test dependencies
+        run: pip install pytest pyodbc
+
       - name: Run tests
-        run: pip install pytest && KOM2_DRIVER_NAME=${{ matrix.output }} pytest
+        run: KOM2_DRIVER_NAME=${{ matrix.output }} pytest
 
       - name: Create Windows installer
         if: matrix.os == 'windows-latest'
