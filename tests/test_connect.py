@@ -1,4 +1,5 @@
 import json
+import os
 import platform
 import socket
 
@@ -17,6 +18,8 @@ def port():
 
 @pytest.fixture
 def driver_name():
+    if name := os.getenv('KOM2_DRIVER_NAME'):
+        return name
     return {"Linux": "kom2.so", "Darwin": "kom2.dylib", "Windows": "kom2.dll"}[
         platform.system()
     ]
