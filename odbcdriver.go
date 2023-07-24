@@ -176,7 +176,7 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 
 	dsn = conStrArg("dsn", dsn)
 
-	var fetchParametersStr, fetchMetadataStr, logFile, logFormat, logLevel string
+	var fetchParametersStr, fetchMetadataStr, logFile, logFormat, logLevel, httpTimeout string
 
 	// Config file is lowest priority
 	if dsn != "" {
@@ -189,6 +189,9 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 		logFile = SQLGetPrivateProfileString(dsn, "logfile", "", ".odbc.ini")
 		logFormat = SQLGetPrivateProfileString(dsn, "logformat", "", ".odbc.ini")
 		logLevel = SQLGetPrivateProfileString(dsn, "loglevel", "", ".odbc.ini")
+
+		httpTimeout = SQLGetPrivateProfileString(dsn, "httptimeout", "", ".odbc.ini")
+
 	}
 
 	// Then connection string is higher
@@ -202,11 +205,23 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 	logFormat = strings.ToLower(conStrArg("logformat", logFormat))
 	logLevel = strings.ToLower(conStrArg("loglevel", logLevel))
 
+	httpTimeout = strings.ToLower(conStrArg("httptimeout", httpTimeout))
+
 	if LogFile == "" {
 		connHandle.log = setupLogging(connHandle.log, logFile, logFormat, logLevel)
 	}
 
-	// Then explicit username and password is highest
+	httpTimeoutDuration := 30 * time.Second
+	if httpTimeout != "" {
+		var err error
+		httpTimeoutDuration, err = time.ParseDuration(httpTimeout)
+		if err != nil {
+			connHandle.log.Error().Err(err).Msgf("Error parsing httptimeout, default timeout used: %s", httpTimeoutDuration)
+		}
+	}
+	connHandle.httpClient = &http.Client{Timeout: httpTimeoutDuration}
+
+	// Explicit username and password is highest
 	if userName != "" {
 		connHandle.inventreeConfig.userName = userName
 	}
@@ -332,12 +347,9 @@ type logging struct {
 }
 type environmentHandle struct {
 	errorInfo
-
-	httpClient *http.Client
 }
 
 func (e *environmentHandle) init() {
-	e.httpClient = &http.Client{}
 }
 
 func addressBytes(addr unsafe.Pointer) []byte {
@@ -354,6 +366,8 @@ func (e *environmentHandle) MarshalZerologObject(ev *zerolog.Event) {
 type connectionHandle struct {
 	errorInfo
 	logging
+
+	httpClient *http.Client
 
 	env             *environmentHandle
 	inventreeConfig struct {
@@ -412,7 +426,7 @@ func (c *connectionHandle) getApiToken(userName, password string) (string, error
 		return "", err
 	}
 	request.SetBasicAuth(userName, password)
-	response, err := c.env.httpClient.Do(request)
+	response, err := c.httpClient.Do(request)
 	if err != nil {
 		return "", err
 	}
@@ -445,7 +459,7 @@ func (c *connectionHandle) apiGet(resource string, args map[string]string, resul
 		}
 		request.URL.RawQuery = q.Encode()
 	}
-	response, err := c.env.httpClient.Do(request)
+	response, err := c.httpClient.Do(request)
 	if err != nil {
 		return err
 	}
