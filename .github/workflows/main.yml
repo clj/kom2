@@ -82,7 +82,7 @@ jobs:
         run: ${{ matrix.env }} ./build.sh -o ${{ matrix.output }} -tags odbcinst -ldflags "-s -w -X main.Version=${{ env.release_name }} -X main.BuildDate=${{ env.timestamp }} -X main.Commit=${{ github.sha }}"
 
       - name: Install test dependencies
-        run: pip install pytest pyodbc
+        run: pip3 install pytest pyodbc
 
       - name: Run tests
         run: KOM2_DRIVER_NAME=./${{ matrix.output }} pytest
