@@ -108,7 +108,7 @@ jobs:
         if: matrix.test == true && matrix.os != 'windows-latest'
 
       - name: Run tests (Windows)
-        run: $GITHUB_WORKSPACE/inst.exe install && KOM2_DRIVER_NAME=kom2 pytest
+        run: $GITHUB_WORKSPACE/inst.exe install --dll ${{ matrix.output }} && KOM2_DRIVER_NAME=kom2 pytest
         if: matrix.test == true && matrix.os == 'windows-latest'
 
       - name: Upload artifacts
