@@ -42,7 +42,7 @@ def test_connect_no_server(port):
     hostname, portnumber = port
     with pytest.raises(pyodbc.OperationalError) as exception:
         pyodbc.connect(
-            f"Driver=kom2.dylib;server=http://{hostname}:{portnumber};apitoken=asdf"
+            f"Driver=kom2.dylib;server=http://{hostname}:{portnumber};apitoken=asdf;httptimeout=1ms"
         )
 
     assert exception.value.args[0] == "08001"
