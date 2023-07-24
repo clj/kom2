@@ -89,12 +89,12 @@ Function CheckAlreadyInstalled
     MessageBox MB_YESNO "KiCad ODBC Middleware seems to  \
                           already be installed. Would you like to \
                           uninstall it first?" \
-                          IDYES UNINSTALL IDNO INSTALL
+                          /SD IDYES IDYES UNINSTALL IDNO INSTALL
 
     UNINSTALL:
      ${RIndexOf} $R0 $0 "\"
      StrCpy $1 $0 -$R0
-     ExecWait '"$0" _?=$1'
+     ExecWait '"$0" /S _?=$1'
 
     INSTALL:
 FunctionEnd
