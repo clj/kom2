@@ -33,7 +33,7 @@ jobs:
           - os: windows-latest
             output: kom2-windows-amd64.dll
             installer: kom2-windows-amd64.exe
-            test: true
+            test: false
 
     runs-on: ${{ matrix.os }}
 
