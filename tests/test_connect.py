@@ -1,4 +1,5 @@
 import json
+import platform
 import socket
 
 import pyodbc
@@ -14,48 +15,55 @@ def port():
     s.close()
 
 
-def test_connect_without_server():
+@pytest.fixture
+def driver_name():
+    return {"Linux": "kom2.so", "Darwin": "kom2.dylib", "Windows": "kom2.dll"}[
+        platform.system()
+    ]
+
+
+def test_connect_without_server(driver_name):
     with pytest.raises(pyodbc.OperationalError) as exception:
-        pyodbc.connect("Driver=kom2.dylib")
+        pyodbc.connect(f"Driver={driver_name}")
 
     assert exception.value.args[0] == "08001"
     assert "No Server specified" in exception.value.args[1]
 
 
-def test_connect_no_credentials():
+def test_connect_no_credentials(driver_name):
     with pytest.raises(pyodbc.OperationalError) as exception:
-        pyodbc.connect("Driver=kom2.dylib;server=asdf")
+        pyodbc.connect(f"Driver={driver_name};server=asdf")
 
     assert exception.value.args[0] == "08001"
     assert "No APIToken or Username+Password specified" in exception.value.args[1]
 
 
-def test_connect_invalid_server():
+def test_connect_invalid_server(driver_name):
     with pytest.raises(pyodbc.OperationalError) as exception:
-        pyodbc.connect("Driver=kom2.dylib;server=asdf://asdf;apitoken=asdf")
+        pyodbc.connect(f"Driver={driver_name};server=asdf://asdf;apitoken=asdf")
 
     assert exception.value.args[0] == "08001"
     assert "Error updating category list" in exception.value.args[1]
 
 
-def test_connect_no_server(port):
+def test_connect_no_server(driver_name, port):
     hostname, portnumber = port
     with pytest.raises(pyodbc.OperationalError) as exception:
         pyodbc.connect(
-            f"Driver=kom2.dylib;server=http://{hostname}:{portnumber};apitoken=asdf;httptimeout=1ms"
+            f"Driver={driver_name};server=http://{hostname}:{portnumber};apitoken=asdf;httptimeout=1ms"
         )
 
     assert exception.value.args[0] == "08001"
     assert "Error updating category list" in exception.value.args[1]
 
 
-def test_connect_log(tmp_path):
+def test_connect_log(driver_name, tmp_path):
     logfile = tmp_path / "logfile.log"
     with pytest.raises(pyodbc.OperationalError) as exception:
-        pyodbc.connect(f"Driver=kom2.dylib;logfile={logfile}")
+        pyodbc.connect(f"Driver={driver_name};logfile={logfile}")
 
     assert exception.value.args[0] == "08001"
     assert "No Server specified" in exception.value.args[1]
 
-    log_line = json.loads(logfile.read_text())
-    assert "No Server specified" in log_line["error"]
+    log_lines = [json.loads(line) for line in logfile.read_text().splitlines()]
+    assert any("No Server specified" in log_line["error"] for log_line in log_lines)
