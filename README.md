@@ -53,8 +53,8 @@ Create a `inventree.kicad_dbl` file with a valid configuration (see the [KiCad d
     "libraries": [
         {
             "name": "Resistors",
-            "table": "Resistors",
-            "key": "IPN",
+            "table": "Electronics/Passives/Resistors",
+            "key": "pk",
             "symbols": "parameter.Symbol",
             "footprints": "parameter.Footprint",
             "fields": [
