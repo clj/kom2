@@ -323,6 +323,18 @@ func (e *DriverError) SetAndReturnError(handle errorInfo) C.SQLRETURN {
 
 func SetError(handle interface{}, err *DriverError) zerolog.Logger {
 	switch h := handle.(type) {
+	// These are all the same really:
+	// case C.SQLHENV:
+	// case C.SQLHDBC:
+	// case C.SQLHSTMT:
+	case C.SQLHANDLE:
+		handle = cgo.Handle(h).Value()
+	}
+
+	switch h := handle.(type) {
+	case *environmentHandle:
+		h.errorInfo.errorInfo = err
+		return zerolog.Logger{}
 	case *connectionHandle:
 		h.errorInfo.errorInfo = err
 		return h.log
