@@ -32,6 +32,7 @@ class CLibrary:
         input,
         library_name,
         include_paths=[
+            "/usr/include",
             "/usr/local/include",
         ],
     ):
