@@ -1512,13 +1512,13 @@ func SQLBindParameter(
 func SQLSetEnvAttr(EnvironmentHandle C.SQLHENV, Attribute C.SQLINTEGER, ValuePtr C.SQLPOINTER, StringLength C.SQLINTEGER) C.SQLRETURN {
 	switch Attribute {
 	case C.SQL_ATTR_ODBC_VERSION:
-		if int(uintptr(ValuePtr)) == C.SQL_OV_ODBC3 {
-			return C.SQL_SUCCESS
+		if int(uintptr(ValuePtr)) != C.SQL_OV_ODBC3 {
+			return SetAndReturnError(EnvironmentHandle, &DriverError{SqlState: "HY024", Message: "Unsupported value for ODBC version"})
 		}
+		return C.SQL_SUCCESS
 	default:
-		return C.SQL_ERROR
+		return SetAndReturnError(EnvironmentHandle, &DriverError{SqlState: "HYC00", Message: "Unsupported attribute"})
 	}
-	return C.SQL_ERROR
 }
 
 //export SQLGetStmtAttr
