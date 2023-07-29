@@ -321,18 +321,21 @@ func (e *DriverError) SetAndReturnError(handle errorInfo) C.SQLRETURN {
 	return C.SQL_ERROR
 }
 
-func SetAndReturnError(handle interface{}, err *DriverError) C.SQLRETURN {
-	var log zerolog.Logger
+func SetError(handle interface{}, err *DriverError) zerolog.Logger {
 	switch h := handle.(type) {
 	case *connectionHandle:
 		h.errorInfo.errorInfo = err
-		log = h.log
+		return h.log
 	case *statementHandle:
 		h.errorInfo.errorInfo = err
-		log = h.log
+		return h.log
 	default:
-		panic("FIXME!")
+		return zerolog.Logger{}
 	}
+}
+
+func SetAndReturnError(handle interface{}, err *DriverError) C.SQLRETURN {
+	log := SetError(handle, err)
 
 	log.Error().Err(err).Str("return", "SQL_ERROR").Send()
 	return C.SQL_ERROR
