@@ -1,0 +1,7 @@
+cffi
+pcpp
+pycparser
+pyodbc
+pytest
+pytest-lazy-fixture
+pytest-xdist
