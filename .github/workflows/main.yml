@@ -100,7 +100,7 @@ jobs:
           arguments: "/V4 /DDLL=${{ matrix.output }} /DOUTFILE=${{ matrix.installer }}"
 
       - name: Install test dependencies
-        run: pip3 install pytest pyodbc
+        run: pip3 install -r requirements-testing.txt
         if: matrix.test == true
 
       - name: Run tests

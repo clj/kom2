@@ -806,8 +806,23 @@ func SQLGetDiagRec(
 }
 
 //export SQLAllocHandle
-func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHandlePtr *C.SQLHANDLE) C.SQLRETURN {
+func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHandlePtr *C.SQLHANDLE) (ret C.SQLRETURN) {
 	var log zerolog.Logger
+
+	setOutputHandleOnError := func(nullHandle C.SQLHANDLE) {
+		if err := recover(); err != nil {
+			if OutputHandlePtr != nil {
+				*OutputHandlePtr = nullHandle
+			}
+			log.Info().Str("return", "SQL_ERROR").Send()
+			ret = C.SQL_ERROR
+		}
+	}
+	setErrorInfoOnError := func(handle interface{}, msg string) {
+		if err := recover(); err != nil {
+			SetError(handle, &DriverError{SqlState: "HY000", Message: msg, Err: err.(error)})
+		}
+	}
 
 	switch HandleType {
 	case C.SQL_HANDLE_ENV:
@@ -816,14 +831,18 @@ func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHan
 		handle := cgo.NewHandle(&envHandle)
 		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
 	case C.SQL_HANDLE_DBC:
+		defer setOutputHandleOnError(C.SQLHANDLE(uintptr(C.SQL_NULL_HDBC)))
 		envHandle := cgo.Handle(InputHandle).Value().(*environmentHandle)
+		defer setErrorInfoOnError(envHandle, "Error initialising connection handle")
 		connHandle := connectionHandle{}
 		connHandle.init(envHandle)
 		handle := cgo.NewHandle(&connHandle)
 		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
 		log = connHandle.log.With().Str("fn", "SQLAllocHandle").Str("handle_type", "SQL_HANDLE_DBC").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
 	case C.SQL_HANDLE_STMT:
+		defer setOutputHandleOnError(C.SQLHANDLE(uintptr(C.SQL_NULL_HSTMT)))
 		connHandle := cgo.Handle(InputHandle).Value().(*connectionHandle)
+		defer setErrorInfoOnError(connHandle, "Error initialising statement handle")
 		stmtHandle := statementHandle{}
 		stmtHandle.init(connHandle)
 		handle := cgo.NewHandle(&stmtHandle)
