@@ -5,3 +5,4 @@ pyodbc
 pytest
 pytest-lazy-fixture
 pytest-xdist
+pycparserext

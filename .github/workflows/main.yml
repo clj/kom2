@@ -33,7 +33,7 @@ jobs:
           - os: windows-latest
             output: kom2-windows-amd64.dll
             installer: kom2-windows-amd64.exe
-            test: false
+            test: true
 
     runs-on: ${{ matrix.os }}
 
@@ -104,11 +104,11 @@ jobs:
         if: matrix.test == true
 
       - name: Run tests
-        run: KOM2_DRIVER_NAME=./${{ matrix.output }} pytest
+        run: KOM2_DRIVER_NAME=./${{ matrix.output }} KOM2_DRIVER_LIBRARY=./${{ matrix.output }} pytest
         if: matrix.test == true && matrix.os != 'windows-latest'
 
       - name: Run tests (Windows)
-        run: $GITHUB_WORKSPACE/${{ matrix.installer }} /S && KOM2_DRIVER_NAME=kom2 pytest
+        run: KOM2_DRIVER_NAME=kom2 KOM2_DRIVER_LIBRARY=./${{ matrix.output }} pytest
         if: matrix.test == true && matrix.os == 'windows-latest'
 
       - name: Upload artifacts

@@ -1,7 +1,12 @@
 import json
+import sys
 
 import pyodbc
 import pytest
+
+
+if sys.platform.startswith("win"):
+    pytest.skip("skipping connect tests in Windows", allow_module_level=True)
 
 
 def test_connect_without_server(driver_name):
