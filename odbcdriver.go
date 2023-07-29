@@ -849,7 +849,7 @@ func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHan
 		*OutputHandlePtr = C.SQLHANDLE(unsafe.Pointer(handle))
 		log = stmtHandle.log.With().Str("fn", "SQLAllocHandle").Str("handle_type", "SQL_HANDLE_STMT").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
 	default:
-		log.Info().Str("return", "SQL_SUCCESS").Send()
+		log.Info().Str("return", "SQL_ERROR").Send()
 		return C.SQL_ERROR
 	}
 
