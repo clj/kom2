@@ -771,6 +771,24 @@ func copyGoStringToCString(dst *C.uchar, src string, length int) {
 	C.strncpy((*C.char)(unsafe.Pointer(dst)), cSrc, C.size_t(length)+1) // + 1 because we add "\0"
 }
 
+func copyStringToBuffer(dst *C.uchar, src string, bufferSize int) int {
+	if len(src)+1 > bufferSize {
+		src = src[:bufferSize-1]
+	}
+	cSrc := C.CString(src + "\x00")
+	length := len(src) + 1
+	defer C.free(unsafe.Pointer(cSrc))
+	C.strncpy((*C.char)(unsafe.Pointer(dst)), cSrc, C.size_t(length))
+
+	return length
+}
+
+func recoverFromInvalidHandle(ret *C.SQLRETURN) {
+	if err := recover(); err != nil {
+		*ret = C.SQL_INVALID_HANDLE
+	}
+}
+
 //export SQLGetDiagRec
 func SQLGetDiagRec(
 	HandleType C.SQLSMALLINT,
@@ -781,25 +799,41 @@ func SQLGetDiagRec(
 	MessageText *C.SQLCHAR,
 	BufferLength C.SQLSMALLINT,
 	TextLengthPtr *C.SQLSMALLINT,
-) C.SQLRETURN {
-	if RecNumber != 1 {
-		return C.SQL_NO_DATA
-	}
-	genericHandle := cgo.Handle(Handle).Value()
+) (ret C.SQLRETURN) {
 	var errorInfo *DriverError
 
+	defer recoverFromInvalidHandle(&ret)
+
+	genericHandle := cgo.Handle(Handle).Value()
 	switch handle := genericHandle.(type) {
 	case *environmentHandle:
+		if HandleType != C.SQL_HANDLE_ENV {
+			return C.SQL_INVALID_HANDLE
+		}
 		errorInfo = handle.errorInfo.errorInfo
 	case *connectionHandle:
+		if HandleType != C.SQL_HANDLE_DBC {
+			return C.SQL_INVALID_HANDLE
+		}
 		errorInfo = handle.errorInfo.errorInfo
 	case *statementHandle:
+		if HandleType != C.SQL_HANDLE_STMT {
+			return C.SQL_INVALID_HANDLE
+		}
 		errorInfo = handle.errorInfo.errorInfo
 	default:
-		panic("unknown handle type")
+		return C.SQL_INVALID_HANDLE
 	}
 
 	if errorInfo == nil {
+		return C.SQL_NO_DATA
+	}
+
+	if RecNumber < 1 {
+		return C.SQL_ERROR
+	}
+
+	if RecNumber != 1 {
 		return C.SQL_NO_DATA
 	}
 
@@ -810,8 +844,10 @@ func SQLGetDiagRec(
 		message = errorInfo.Message
 	}
 
-	copyGoStringToCString(SQLState, errorInfo.SqlState, 5)
-	copyGoStringToCString(MessageText, message, int(BufferLength))
+	copyStringToBuffer(SQLState, errorInfo.SqlState, 6) // 5 + \x00
+	if MessageText != nil {
+		copyStringToBuffer(MessageText, message, int(BufferLength))
+	}
 	*TextLengthPtr = C.short(len(message))
 
 	return C.SQL_SUCCESS
