@@ -1012,7 +1012,9 @@ func SQLNumResultCols(StatementHandle C.SQLHSTMT, ColumnCountPtr *C.SQLSMALLINT)
 }
 
 //export SQLFreeHandle
-func SQLFreeHandle(HandleType C.SQLSMALLINT, Handle C.SQLHANDLE) C.SQLRETURN {
+func SQLFreeHandle(HandleType C.SQLSMALLINT, Handle C.SQLHANDLE) (ret C.SQLRETURN) {
+	defer recoverFromInvalidHandle(&ret)
+
 	switch HandleType {
 	case C.SQL_HANDLE_DBC:
 		cgo.Handle(Handle).Delete()
@@ -1021,7 +1023,7 @@ func SQLFreeHandle(HandleType C.SQLSMALLINT, Handle C.SQLHANDLE) C.SQLRETURN {
 	case C.SQL_HANDLE_STMT:
 		cgo.Handle(Handle).Delete()
 	default:
-		panic(fmt.Sprintf("Unknown handle type in call to SQLFreeHandle: %d", HandleType))
+		return C.SQL_INVALID_HANDLE
 	}
 
 	return C.SQL_SUCCESS
