@@ -783,10 +783,9 @@ func copyStringToBuffer(dst *C.uchar, src string, bufferSize int) int {
 	return length
 }
 
-func recoverFromInvalidHandle(ret *C.SQLRETURN) {
-	if err := recover(); err != nil {
-		*ret = C.SQL_INVALID_HANDLE
-	}
+func resolveHandle(handle C.SQLHANDLE) any {
+	defer func() { recover() }()
+	return cgo.Handle(handle).Value()
 }
 
 //export SQLGetDiagRec
@@ -799,12 +798,11 @@ func SQLGetDiagRec(
 	MessageText *C.SQLCHAR,
 	BufferLength C.SQLSMALLINT,
 	TextLengthPtr *C.SQLSMALLINT,
-) (ret C.SQLRETURN) {
+) C.SQLRETURN {
 	var errorInfo *DriverError
 
-	defer recoverFromInvalidHandle(&ret)
+	genericHandle := resolveHandle(Handle)
 
-	genericHandle := cgo.Handle(Handle).Value()
 	switch handle := genericHandle.(type) {
 	case *environmentHandle:
 		if HandleType != C.SQL_HANDLE_ENV {
@@ -1009,6 +1007,12 @@ func SQLNumResultCols(StatementHandle C.SQLHSTMT, ColumnCountPtr *C.SQLSMALLINT)
 	*ColumnCountPtr = C.short(len(s.def))
 
 	return C.SQL_SUCCESS
+}
+
+func recoverFromInvalidHandle(ret *C.SQLRETURN) {
+	if err := recover(); err != nil {
+		*ret = C.SQL_INVALID_HANDLE
+	}
 }
 
 //export SQLFreeHandle
