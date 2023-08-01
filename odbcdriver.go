@@ -788,6 +788,11 @@ func resolveHandle(handle C.SQLHANDLE) any {
 	return cgo.Handle(handle).Value()
 }
 
+func resolveStatementHandle(handle C.SQLHSTMT) *statementHandle {
+	defer func() { recover() }()
+	return cgo.Handle(handle).Value().(*statementHandle)
+}
+
 //export SQLGetDiagRec
 func SQLGetDiagRec(
 	HandleType C.SQLSMALLINT,
@@ -930,7 +935,10 @@ func splitSQL(sql string) []string {
 
 //export SQLPrepare
 func SQLPrepare(StatementHandle C.SQLHSTMT, StatementText *C.SQLCHAR, TextLength C.SQLINTEGER) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
 
 	statementText := toGoString(StatementText, TextLength)
 
@@ -969,7 +977,11 @@ func SQLPrepare(StatementHandle C.SQLHSTMT, StatementText *C.SQLCHAR, TextLength
 
 //export SQLExecute
 func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	s.index = -1
 
 	if s.statement.condition == nil {
@@ -1002,7 +1014,10 @@ func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 
 //export SQLNumResultCols
 func SQLNumResultCols(StatementHandle C.SQLHSTMT, ColumnCountPtr *C.SQLSMALLINT) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
 
 	*ColumnCountPtr = C.short(len(s.def))
 
@@ -1035,7 +1050,11 @@ func SQLFreeHandle(HandleType C.SQLSMALLINT, Handle C.SQLHANDLE) (ret C.SQLRETUR
 
 //export SQLTables
 func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C.SQLSMALLINT, SchemaName *C.SQLCHAR, NameLength2 C.SQLSMALLINT, TableName *C.SQLCHAR, NameLength3 C.SQLSMALLINT, TableType *C.SQLCHAR, NameLength4 C.SQLSMALLINT) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	log := s.log.With().Str("fn", "SQLTables").Logger()
 
 	s.def = []*desc{
@@ -1071,9 +1090,13 @@ func rowFromMap(def []*desc, data map[string]any) []any {
 
 //export SQLColumns
 func SQLColumns(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C.SQLSMALLINT, SchemaName *C.SQLCHAR, NameLength2 C.SQLSMALLINT, TableName *C.SQLCHAR, NameLength3 C.SQLSMALLINT, ColumnName *C.SQLCHAR, NameLength4 C.SQLSMALLINT) C.SQLRETURN {
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	tableName := toGoString(TableName, NameLength3)
 
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 	log := s.log.With().Str("fn", "SQLColumns").Dict("args", zerolog.Dict().Str("TableName", tableName)).Logger()
 
 	s.def = []*desc{
@@ -1123,7 +1146,11 @@ func SQLColumns(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 
 
 //export SQLSetStmtAttr
 func SQLSetStmtAttr(StatementHandle C.SQLHSTMT, Attribute C.SQLINTEGER, ValuePtr C.SQLPOINTER, StringLength C.SQLINTEGER) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	log := s.log.With().Str("fn", "SQLSetStmtAttr").Dict("args", zerolog.Dict().Int("Attribute", int(Attribute)).Hex("ValuePtr", addressBytes(unsafe.Pointer(ValuePtr))).Int("StringLength", int(StringLength))).Logger()
 
 	switch Attribute {
@@ -1166,7 +1193,10 @@ func SQLDescribeCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, Col
 	NameLengthPtr *C.SQLSMALLINT, DataTypePtr *C.SQLSMALLINT, ColumnSizePtr *C.SQLULEN,
 	DecimalDigitsPtr *C.SQLSMALLINT, NullablePtr *C.SQLSMALLINT,
 ) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
 
 	if s.def == nil || s.def[ColumnNumber-1] == nil {
 		return C.SQL_SUCCESS
@@ -1186,7 +1216,11 @@ func SQLDescribeCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, Col
 func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetType C.SQLSMALLINT,
 	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN,
 ) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	log := s.log.With().Str("fn", "SQLBindCol").Dict("args", zerolog.Dict().Uint("ColumnNumber", uint(ColumnNumber))).Logger()
 
 	if s.binds == nil {
@@ -1208,7 +1242,11 @@ func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetT
 
 //export SQLFetchScroll
 func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, FetchOffset C.SQLLEN) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	s.index = s.index + 1
 	log := s.log.With().Str("fn", "SQLFetchScroll").Int("index", s.index).Logger()
 
@@ -1233,7 +1271,10 @@ func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, 
 
 //export SQLFetch
 func SQLFetch(StatementHandle C.SQLHSTMT) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
 	s.index = s.index + 1
 	log := s.log.With().Str("fn", "SQLFetch").Int("index", s.index).Logger()
 
@@ -1389,7 +1430,10 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 func SQLGetData(StatementHandle C.SQLHSTMT, Col_or_Param_Num C.SQLUSMALLINT, TargetType C.SQLSMALLINT,
 	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN,
 ) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
 	log := s.log.With().Str("fn", "SQLGetData").Dict("args", zerolog.Dict().Uint("Col_or_Param_Num", uint(Col_or_Param_Num))).Int("index", s.index).Logger()
 
 	populateData(s.data[s.index][Col_or_Param_Num-1], TargetType, TargetValuePtr, BufferLength, StrLen_or_IndPtr)
@@ -1408,7 +1452,10 @@ func SQLColAttribute(
 	StringLengthPtr *C.SQLSMALLINT,
 	NumericAttributePtr *C.SQLLEN,
 ) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
 
 	col := s.def[ColumnNumber-1]
 
@@ -1531,14 +1578,17 @@ func SQLBindParameter(
 	BufferLength C.SQLLEN,
 	StrLen_or_IndPtr *C.SQLLEN,
 ) C.SQLRETURN {
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	if InputOutputType != C.SQL_PARAM_INPUT {
 		panic("InputOutputType != C.SQL_PARAM_INPUT")
 	}
 	if ValueType != C.SQL_C_CHAR {
 		panic("ValueType != C.SQL_C_CHAR")
 	}
-
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
 
 	param := param{
 		ValueType:         ValueType,
@@ -1571,7 +1621,11 @@ func SQLGetStmtAttr(
 	BufferLength C.SQLINTEGER,
 	StringLengthPtr *C.SQLINTEGER,
 ) C.SQLRETURN {
-	s := cgo.Handle(StatementHandle).Value().(*statementHandle)
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	log := s.log.With().Str("fn", "SQLGetStmtAttr").Dict("args", zerolog.Dict().Uint("Attribute", uint(Attribute))).Logger()
 
 	switch Attribute {
