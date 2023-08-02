@@ -275,17 +275,36 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 	return C.SQL_SUCCESS
 }
 
+func resolveHandle(handle C.SQLHANDLE) any {
+	defer func() { recover() }()
+	return cgo.Handle(handle).Value()
+}
+
+func resolveConnectionHandle(handle C.SQLHDBC) *connectionHandle {
+	defer func() { recover() }()
+	return cgo.Handle(handle).Value().(*connectionHandle)
+}
+
+func resolveStatementHandle(handle C.SQLHSTMT) *statementHandle {
+	defer func() { recover() }()
+	return cgo.Handle(handle).Value().(*statementHandle)
+}
+
 //export SQLConnect
 func SQLConnect(ConnectionHandle C.SQLHDBC,
 	ServerName *C.SQLCHAR, NameLength1 C.SQLSMALLINT,
 	UserName *C.SQLCHAR, NameLength2 C.SQLSMALLINT,
 	Authentication *C.SQLCHAR, NameLength3 C.SQLSMALLINT,
 ) C.SQLRETURN {
+	connHandle := resolveConnectionHandle(ConnectionHandle)
+	if connHandle == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	serverName := toGoString(ServerName, NameLength1)
 	userName := toGoString(UserName, NameLength2)
 	password := toGoString(Authentication, NameLength3)
 
-	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
 	return connHandle.initConnection(serverName, "", userName, password)
 }
 
@@ -300,9 +319,13 @@ func SQLDriverConnect(
 	StringLength2Ptr *C.SQLSMALLINT,
 	DriverCompletion C.SQLUSMALLINT,
 ) C.SQLRETURN {
+	connHandle := resolveConnectionHandle(ConnectionHandle)
+	if connHandle == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	inConnectionString := toGoString(InConnectionString, StringLength1)
 
-	connHandle := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
 	return connHandle.initConnection("", inConnectionString, "", "")
 }
 
@@ -781,16 +804,6 @@ func copyStringToBuffer(dst *C.uchar, src string, bufferSize int) int {
 	C.strncpy((*C.char)(unsafe.Pointer(dst)), cSrc, C.size_t(length))
 
 	return length
-}
-
-func resolveHandle(handle C.SQLHANDLE) any {
-	defer func() { recover() }()
-	return cgo.Handle(handle).Value()
-}
-
-func resolveStatementHandle(handle C.SQLHSTMT) *statementHandle {
-	defer func() { recover() }()
-	return cgo.Handle(handle).Value().(*statementHandle)
 }
 
 //export SQLGetDiagRec
@@ -1492,7 +1505,11 @@ func SQLFreeStmt(StatementHandle C.SQLHSTMT, Option C.SQLUSMALLINT) C.SQLRETURN 
 func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePtr C.SQLPOINTER,
 	BufferLength C.SQLSMALLINT, StringLengthPtr *C.SQLSMALLINT,
 ) C.SQLRETURN {
-	c := cgo.Handle(ConnectionHandle).Value().(*connectionHandle)
+	c := resolveConnectionHandle(ConnectionHandle)
+	if c == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	log := c.log.With().Str("fn", "SQLGetInfo").Dict("args", zerolog.Dict().Uint("InfoType", uint(InfoType)).Hex("InfoValuePtr", addressBytes(unsafe.Pointer(InfoValuePtr)))).Logger()
 
 	returnString := func(str string) {
