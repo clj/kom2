@@ -776,8 +776,8 @@ func copyStringToBuffer(dst *C.uchar, src string, bufferSize int) int {
 		src = src[:bufferSize-1]
 	}
 	cSrc := C.CString(src + "\x00")
-	length := len(src) + 1
 	defer C.free(unsafe.Pointer(cSrc))
+	length := len(src) + 1
 	C.strncpy((*C.char)(unsafe.Pointer(dst)), cSrc, C.size_t(length))
 
 	return length
