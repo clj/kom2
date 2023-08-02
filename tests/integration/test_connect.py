@@ -54,3 +54,15 @@ def test_connect_log(driver_name, tmp_path):
 
     log_lines = [json.loads(line) for line in logfile.read_text().splitlines()]
     assert any("No Server specified" in log_line["error"] for log_line in log_lines)
+
+
+def test_invalid_credentials(driver_name, httpserver):
+    server = httpserver.url_for("")
+    httpserver.expect_request("/api/user/token").respond_with_data(status=401)
+    with pytest.raises(pyodbc.OperationalError) as exception:
+        pyodbc.connect(
+            f"Driver={driver_name};server={server};username=asdf;password=asdf"
+        )
+
+    assert exception.value.args[0] == "08001"
+    assert "401" in exception.value.args[1]

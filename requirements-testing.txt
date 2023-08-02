@@ -3,5 +3,6 @@ pcpp
 pycparser
 pyodbc
 pytest
+pytest-httpserver
 pytest-lazy-fixture
 pytest-xdist
