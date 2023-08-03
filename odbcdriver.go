@@ -893,6 +893,121 @@ func SQLGetDiagRec(
 	return C.SQL_SUCCESS
 }
 
+//export SQLGetDiagField
+func SQLGetDiagField(
+	HandleType C.SQLSMALLINT,
+	Handle C.SQLHANDLE,
+	RecNumber C.SQLSMALLINT,
+	DiagIdentifier C.SQLSMALLINT,
+	DiagInfoPtr C.SQLPOINTER,
+	BufferLength C.SQLSMALLINT,
+	StringLengthPtr *C.SQLSMALLINT,
+) C.SQLRETURN {
+	var errorInfo *DriverError
+	var log zerolog.Logger
+
+	genericHandle := resolveHandle(Handle)
+
+	switch handle := genericHandle.(type) {
+	case *environmentHandle:
+		if HandleType != C.SQL_HANDLE_ENV {
+			return C.SQL_INVALID_HANDLE
+		}
+		errorInfo = handle.errorInfo.errorInfo
+		log = zerolog.Logger{}
+	case *connectionHandle:
+		if HandleType != C.SQL_HANDLE_DBC {
+			return C.SQL_INVALID_HANDLE
+		}
+		errorInfo = handle.errorInfo.errorInfo
+		log = handle.log.With().Str("fn", "SQLGetDiagField").Str("handle_type", "SQL_HANDLE_DBC").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
+	case *statementHandle:
+		if HandleType != C.SQL_HANDLE_STMT {
+			return C.SQL_INVALID_HANDLE
+		}
+		errorInfo = handle.errorInfo.errorInfo
+		log = handle.log.With().Str("fn", "SQLGetDiagField").Str("handle_type", "SQL_HANDLE_STMT").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
+
+	default:
+		return C.SQL_INVALID_HANDLE
+	}
+
+	if errorInfo == nil {
+		log.Debug().Msg("errInfo was nil")
+		return C.SQL_NO_DATA
+	}
+
+	if RecNumber < 1 {
+		log.Debug().Msgf("RecNumber:%v < 1", RecNumber)
+		return C.SQL_ERROR
+	}
+
+	if RecNumber != 1 {
+		log.Debug().Msgf("RecNumber:%v != 1", RecNumber)
+		return C.SQL_NO_DATA
+	}
+
+	copyString := func(msg string) C.SQLRETURN {
+		copied := copyStringToBuffer((*C.SQLCHAR)(DiagInfoPtr), msg, int(BufferLength))
+		*StringLengthPtr = C.SQLSMALLINT(copied - 1) // - \x00
+		if copied-1 != len(msg) {                    // - \x00
+			return C.SQL_SUCCESS_WITH_INFO
+		}
+		return C.SQL_SUCCESS
+	}
+
+	switch DiagIdentifier {
+	case C.SQL_DIAG_NUMBER:
+		log.Debug().Str("DiagIdentifier", "SQL_DIAG_NUMBER").Int("DiagInfoPtr", 1).Str("return", "SQL_SUCCESS").Send()
+		*((*C.SQLINTEGER)(DiagInfoPtr)) = 1
+		return C.SQL_SUCCESS
+	case C.SQL_DIAG_NATIVE:
+		log.Debug().Str("DiagIdentifier", "SQL_DIAG_NATIVE").Int("DiagInfoPtr", 0).Str("return", "SQL_SUCCESS").Send()
+		*((*C.SQLINTEGER)(DiagInfoPtr)) = 0
+		return C.SQL_SUCCESS
+	case C.SQL_DIAG_SQLSTATE:
+		log.Debug().Str("DiagIdentifier", "SQL_DIAG_SQLSTATE").Str("DiagInfoPtr", errorInfo.SqlState).Str("return", "SQL_SUCCESS").Send()
+		return copyString(errorInfo.SqlState)
+	case C.SQL_DIAG_MESSAGE_TEXT:
+		var message string
+		if errorInfo.Err != nil {
+			message = fmt.Sprintf("%s: %s", errorInfo.Message, errorInfo.Err)
+		} else {
+			message = errorInfo.Message
+		}
+		log.Debug().Str("DiagIdentifier", "SQL_DIAG_MESSAGE_TEXT").Str("DiagInfoPtr", message).Str("return", "SQL_SUCCESS").Send()
+		return copyString(message)
+	case C.SQL_DIAG_CLASS_ORIGIN:
+		str := "ISO 9075"
+		if strings.HasPrefix(errorInfo.SqlState, "IM") {
+			str = "ODBC 3.0"
+		}
+		log.Debug().Str("DiagIdentifier", "SQL_DIAG_CLASS_ORIGIN").Str("DiagInfoPtr", str).Str("return", "SQL_SUCCESS").Send()
+		return copyString(str)
+	case C.SQL_DIAG_SUBCLASS_ORIGIN:
+		// Logic taken from the SQLite ODBC driver, this looks different from the docs:
+		//  https://learn.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgetdiagfield-function?view=sql-server-ver16
+		str := "ISO 9075"
+		if strings.HasPrefix(errorInfo.SqlState, "IM") || strings.HasPrefix(errorInfo.SqlState, "HY") || errorInfo.SqlState == "2" || errorInfo.SqlState == "0" || errorInfo.SqlState == "4" {
+			str = "ODBC 3.0"
+		}
+		log.Debug().Str("DiagIdentifier", "SQL_DIAG_SUBCLASS_ORIGIN").Str("DiagInfoPtr", str).Str("return", "SQL_SUCCESS").Send()
+		return copyString(str)
+	case C.SQL_DIAG_CONNECTION_NAME:
+		str := "kom2" // FIXME: use dsn?
+		log.Debug().Str("DiagIdentifier", "SQL_DIAG_CONNECTION_NAME").Str("DiagInfoPtr", str).Str("return", "SQL_SUCCESS").Send()
+		return copyString(str)
+	case C.SQL_DIAG_SERVER_NAME:
+		str := "inventree" // FIXME: actual configured server
+		log.Debug().Str("DiagIdentifier", "SQL_DIAG_SERVER_NAME").Str("DiagInfoPtr", str).Str("return", "SQL_SUCCESS").Send()
+		return copyString(str)
+	}
+
+	log.Error().Int("DiagIdentifier", int(DiagIdentifier)).Str("return", "SQL_ERROR").Send()
+
+	return C.SQL_ERROR
+}
+
 //export SQLAllocHandle
 func SQLAllocHandle(HandleType C.SQLSMALLINT, InputHandle C.SQLHANDLE, OutputHandlePtr *C.SQLHANDLE) (ret C.SQLRETURN) {
 	var log zerolog.Logger
