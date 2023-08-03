@@ -131,7 +131,7 @@ func setupLogging(log zerolog.Logger, logFile, logFormat, logLevel string) zerol
 		}
 	}
 
-	switch logLevel {
+	switch strings.ToLower(logLevel) {
 	case "debug":
 		log = log.Level(zerolog.DebugLevel)
 	case "info":
