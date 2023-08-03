@@ -211,12 +211,15 @@ func (connHandle *connectionHandle) initConnection(dsn, connectionString, userNa
 		connHandle.log = setupLogging(connHandle.log, logFile, logFormat, logLevel)
 	}
 
+	log := connHandle.log.With().Str("fn", "initConnection").Dict("args", zerolog.Dict().Str("dsn", dsn).Str("connectionString", connectionString).Str("userName", userName).Str("password", password)).Logger()
+	log.Debug().Send()
+
 	httpTimeoutDuration := 30 * time.Second
 	if httpTimeout != "" {
 		var err error
 		httpTimeoutDuration, err = time.ParseDuration(httpTimeout)
 		if err != nil {
-			connHandle.log.Error().Err(err).Msgf("Error parsing httptimeout, default timeout used: %s", httpTimeoutDuration)
+			log.Error().Err(err).Msgf("Error parsing httptimeout, default timeout used: %s", httpTimeoutDuration)
 		}
 	}
 	connHandle.httpClient = &http.Client{Timeout: httpTimeoutDuration}
@@ -342,6 +345,19 @@ func (e *DriverError) SetAndReturnError(handle errorInfo) C.SQLRETURN {
 	handle.errorInfo = e
 
 	return C.SQL_ERROR
+}
+
+func getLogger(handle interface{}) zerolog.Logger {
+	switch h := handle.(type) {
+	case *environmentHandle:
+		return zerolog.Logger{}
+	case *connectionHandle:
+		return h.log
+	case *statementHandle:
+		return h.log
+	default:
+		return zerolog.Logger{}
+	}
 }
 
 func SetError(handle interface{}, err *DriverError) zerolog.Logger {
@@ -818,6 +834,7 @@ func SQLGetDiagRec(
 	TextLengthPtr *C.SQLSMALLINT,
 ) C.SQLRETURN {
 	var errorInfo *DriverError
+	var log zerolog.Logger
 
 	genericHandle := resolveHandle(Handle)
 
@@ -827,29 +844,36 @@ func SQLGetDiagRec(
 			return C.SQL_INVALID_HANDLE
 		}
 		errorInfo = handle.errorInfo.errorInfo
+		log = zerolog.Logger{}
 	case *connectionHandle:
 		if HandleType != C.SQL_HANDLE_DBC {
 			return C.SQL_INVALID_HANDLE
 		}
 		errorInfo = handle.errorInfo.errorInfo
+		log = handle.log.With().Str("fn", "SQLGetDiagReg").Str("handle_type", "SQL_HANDLE_DBC").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
 	case *statementHandle:
 		if HandleType != C.SQL_HANDLE_STMT {
 			return C.SQL_INVALID_HANDLE
 		}
 		errorInfo = handle.errorInfo.errorInfo
+		log = handle.log.With().Str("fn", "SQLGetDiagReg").Str("handle_type", "SQL_HANDLE_STMT").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
+
 	default:
 		return C.SQL_INVALID_HANDLE
 	}
 
 	if errorInfo == nil {
+		log.Debug().Msg("errInfo was nil")
 		return C.SQL_NO_DATA
 	}
 
 	if RecNumber < 1 {
+		log.Debug().Msgf("RecNumber:%v < 1", RecNumber)
 		return C.SQL_ERROR
 	}
 
 	if RecNumber != 1 {
+		log.Debug().Msgf("RecNumber:%v != 1", RecNumber)
 		return C.SQL_NO_DATA
 	}
 
