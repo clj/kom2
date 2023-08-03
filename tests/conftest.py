@@ -39,6 +39,8 @@ def driver_library():
 def driver_name(driver_library):
     if name := os.getenv("KOM2_DRIVER_NAME"):
         return name
+    if platform.system() == "Windows":
+        return "kom2"
     return driver_library
 
 
