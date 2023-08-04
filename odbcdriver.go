@@ -1794,7 +1794,9 @@ func SQLGetStmtAttr(
 	case C.SQL_ATTR_APP_PARAM_DESC:
 		value := C.SQLHDESC(uintptr(0xdeadbeef))
 		*((*C.SQLHDESC)(ValuePtr)) = value
-		*StringLengthPtr = C.SQLINTEGER(unsafe.Sizeof(value))
+		if StringLengthPtr != nil {
+			*StringLengthPtr = C.SQLINTEGER(unsafe.Sizeof(value))
+		}
 		log.Info().Str("return", "SQL_SUCCESS").Send()
 		return C.SQL_SUCCESS
 	}
