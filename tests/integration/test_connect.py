@@ -1,12 +1,12 @@
 import json
-import sys
 
 import pypyodbc
 import pytest
 
+from ..conftest import maybe_skip_windows
 
-if sys.platform.startswith("win"):
-    pytest.skip("skipping connect tests in Windows", allow_module_level=True)
+
+pytestmark = pytest.mark.skipif(maybe_skip_windows(), reason="Could not load kom2 driver on Windows")
 
 
 def test_connect_without_server(driver_name):

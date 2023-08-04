@@ -3,6 +3,11 @@ import json
 import pytest
 import pypyodbc
 
+from ..conftest import maybe_skip_windows
+
+
+pytestmark = pytest.mark.skipif(maybe_skip_windows(), reason="Could not load kom2 driver on Windows")
+
 
 @pytest.fixture
 def token_resource(httpserver):

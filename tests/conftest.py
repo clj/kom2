@@ -3,8 +3,10 @@ import os
 import platform
 import socket
 import subprocess
+import sys
 
 import pycparser
+import pypyodbc
 import pytest
 from cffi import FFI
 from pcpp import Action
@@ -35,12 +37,18 @@ def driver_library():
     }[platform.system()]
 
 
-@pytest.fixture(scope="session")
-def driver_name(driver_library):
+def get_driver_name():
     if name := os.getenv("KOM2_DRIVER_NAME"):
         return name
     if platform.system() == "Windows":
         return "kom2"
+    return None
+
+
+@pytest.fixture(scope="session")
+def driver_name(driver_library):
+    if driver_name := get_driver_name():
+        return driver_name
     return driver_library
 
 
@@ -303,3 +311,17 @@ def stmt_handle(C, conn_handle):
     with C.ffi.new("SQLHANDLE*") as handle:
         C.SQLAllocHandle(C.SQL_HANDLE_STMT, conn_handle, handle)
         yield handle[0]
+
+
+def maybe_skip_windows():
+    if not sys.platform.startswith("win"):
+        return False
+    if not (name := get_driver_name()):
+        return False
+    try:
+        pypyodbc.connect(
+            f"Driver={name}"
+        )
+    except pypyodbc.Error as error:
+        return error.args[0] == "IM002"
+    return False
