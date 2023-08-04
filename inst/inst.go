@@ -189,11 +189,18 @@ const (
 func configDataSource(driverName, dsnName string, action configDataSourceAction) error {
 	fmt.Printf("In configDataSource\n")
 
+	cDriverName := C.CString(driverName)
+	defer C.free(unsafe.Pointer(cDriverName))
+
+	fmt.Printf("In configDataSource 0\n")
+
 	attr := "DSN=" + dsnName + "\000Database=\000\000"
+	cAttr := C.CString(attr)
+	defer C.free(unsafe.Pointer(cAttr))
 
 	fmt.Printf("In configDataSource 1\n")
 
-	if C.SQLConfigDataSource(nil, C.ushort(action), C.CString(driverName), C.CString(attr)) != 1 {
+	if C.SQLConfigDataSource(nil, C.ushort(action), cDriverName, cAttr) != 1 {
 		fmt.Printf("In configDataSource 1.1\n")
 
 		return getSQLInstallerError()
