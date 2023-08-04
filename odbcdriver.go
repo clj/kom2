@@ -1677,6 +1677,8 @@ func SQLGetInfo(ConnectionHandle C.SQLHDBC, InfoType C.SQLUSMALLINT, InfoValuePt
 		returnString("kom2")
 	case C.SQL_DRIVER_VER:
 		returnString(fmt.Sprintf("%s %s %s", Version, Commit, BuildDate))
+	case C.SQL_TXN_CAPABLE:
+		*((*C.SQLUINTEGER)(InfoValuePtr)) = C.SQL_TC_NONE
 	default:
 		log.Info().Str("return", "SQL_ERROR").Send()
 		return C.SQL_ERROR
@@ -1803,4 +1805,13 @@ func SQLGetStmtAttr(
 
 	log.Info().Str("return", "SQL_ERROR").Send()
 	return C.SQL_ERROR
+}
+
+//export SQLEndTran
+func SQLEndTran(
+	HandleType C.SQLSMALLINT,
+	Handle C.SQLHANDLE,
+	CompletionType C.SQLSMALLINT,
+) C.SQLRETURN {
+	return C.SQL_SUCCESS
 }
