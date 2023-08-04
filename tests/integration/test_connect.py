@@ -5,10 +5,6 @@ import pyodbc
 import pytest
 
 
-if sys.platform.startswith("win"):
-    pytest.skip("skipping connect tests in Windows", allow_module_level=True)
-
-
 def test_connect_without_server(driver_name):
     with pytest.raises(pyodbc.OperationalError) as exception:
         pyodbc.connect(f"Driver={driver_name}")
@@ -44,6 +40,7 @@ def test_connect_no_server(driver_name, port):
     assert "Error updating category list" in exception.value.args[1]
 
 
+@pytest.skipif(sys.platform.startswith("win"), "Presumably need to fix the logfile path in windows?")
 def test_connect_log(driver_name, tmp_path):
     logfile = tmp_path / "logfile.log"
     with pytest.raises(pyodbc.OperationalError) as exception:
