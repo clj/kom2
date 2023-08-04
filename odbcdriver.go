@@ -1718,12 +1718,17 @@ func SQLDescribeParam(
 	DecimalDigitsPtr *C.SQLSMALLINT,
 	NullablePtr *C.SQLSMALLINT,
 ) C.SQLRETURN {
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
 	if ParameterNumber != 1 {
-		panic("ParameterNumber != 1")
+		return SetAndReturnError(s, &DriverError{SqlState: "07009", Message: "ParameterNumber != 1"})
 	}
 
 	*DataTypePtr = C.SQL_VARCHAR
-	*ParameterSizePtr = 0xfffffffc // C.SQL_NO_TOTAL = -4
+	*ParameterSizePtr = 0xfffffffc // C.SQL_NO_TOTAL = -4  FIXME: Is this correct?
 	*NullablePtr = C.SQL_NO_NULLS
 
 	return C.SQL_SUCCESS
