@@ -69,11 +69,12 @@ func (e *SQLInstallErrors) Error() string {
 }
 
 func getSQLInstallerError() *SQLInstallErrors {
+	fmt.Printf("In getSQLInstallerError\n")
+
 	errorMsg := C.malloc(C.size_t(C.SQL_MAX_MESSAGE_LENGTH))
 	defer C.free(errorMsg)
 
 	var errs SQLInstallErrors
-
 	for i := 0; ; i++ {
 		var errorCode C.DWORD
 		var errLen C.WORD
@@ -102,6 +103,8 @@ func driverString(driverName, dll, path string) string {
 }
 
 func getInstallPath(driverName, dll string) (string, error) {
+	fmt.Printf("In getInstallPath\n")
+
 	const maxPath = 500
 	var pathLen C.WORD
 	var usageCount C.DWORD
@@ -149,6 +152,8 @@ func deleteFile(path string) {
 }
 
 func install(driverName, dll, installPath string) error {
+	fmt.Printf("In install\n")
+
 	const maxPath = 500
 	var pathLen C.WORD
 	var usageCount C.DWORD
