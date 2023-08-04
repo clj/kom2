@@ -189,7 +189,7 @@ const (
 func configDataSource(driverName, dsnName string, action configDataSourceAction) error {
 	fmt.Printf("In configDataSource\n")
 
-	attr := "DSN=" + dsnName + "\000Database=\000"
+	attr := "DSN=" + dsnName + "\000Database=\000\000"
 
 	fmt.Printf("In configDataSource 1\n")
 
