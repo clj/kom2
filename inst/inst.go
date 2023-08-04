@@ -166,7 +166,7 @@ func install(driverName, dll, installPath string) error {
 	fmt.Printf("In install 2\n")
 
 	path := C.malloc(C.size_t(maxPath))
-	defer C.free(path)
+	// defer C.free(path)
 
 	fmt.Printf("In install 3\n")
 	if C.SQLInstallDriverEx(C.CString(driverString(driverName, dll, installPath)), C.CString(installPath), C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_COMPLETE, &usageCount) != 1 {
