@@ -194,7 +194,7 @@ func configDataSource(driverName, dsnName string, action configDataSourceAction)
 
 	fmt.Printf("In configDataSource 0\n")
 
-	attr := "DSN=" + dsnName + "\000Database=\000\000"
+	attr := "DSN=" + dsnName + "\000Database=none\000\000"
 	cAttr := C.CString(attr)
 	defer C.free(unsafe.Pointer(cAttr))
 
