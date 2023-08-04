@@ -40,7 +40,7 @@ def test_connect_no_server(driver_name, port):
     assert "Error updating category list" in exception.value.args[1]
 
 
-@pytest.mark.skipif(sys.platform.startswith("win"), "Presumably need to fix the logfile path in windows?")
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="Presumably need to fix the logfile path in windows?")
 def test_connect_log(driver_name, tmp_path):
     logfile = tmp_path / "logfile.log"
     with pytest.raises(pyodbc.OperationalError) as exception:
