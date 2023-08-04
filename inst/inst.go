@@ -189,7 +189,7 @@ const (
 func configDataSource(driverName, dsnName string, action configDataSourceAction) error {
 	fmt.Printf("In configDataSource\n")
 
-	cDriverName := C.CString(driverName)
+	cDriverName := C.CString(driverName + "\000")
 	defer C.free(unsafe.Pointer(cDriverName))
 
 	fmt.Printf("In configDataSource 0\n")
@@ -198,6 +198,7 @@ func configDataSource(driverName, dsnName string, action configDataSourceAction)
 	cAttr := C.CString(attr)
 	defer C.free(unsafe.Pointer(cAttr))
 
+	fmt.Printf("%q %q\n", driverName, attr)
 	fmt.Printf("In configDataSource 1\n")
 
 	if C.SQLConfigDataSource(nil, C.ushort(action), cDriverName, cAttr) != 1 {
