@@ -166,7 +166,7 @@ func install(driverName, dll, installPath string) error {
 	fmt.Printf("In install 2\n")
 
 	path := C.malloc(C.size_t(maxPath))
-	// defer C.free(path)
+	defer C.free(path)
 
 	fmt.Printf("In install 3\n")
 	if C.SQLInstallDriverEx(C.CString(driverString(driverName, dll, installPath)), C.CString(installPath), C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_COMPLETE, &usageCount) != 1 {
@@ -187,11 +187,18 @@ const (
 )
 
 func configDataSource(driverName, dsnName string, action configDataSourceAction) error {
+	fmt.Printf("In configDataSource\n")
+
 	attr := "DSN=" + dsnName + "\000Database=\000"
 
+	fmt.Printf("In configDataSource 1\n")
+
 	if C.SQLConfigDataSource(nil, C.ushort(action), C.CString(driverName), C.CString(attr)) != 1 {
+		fmt.Printf("In configDataSource 1.1\n")
+
 		return getSQLInstallerError()
 	}
+	fmt.Printf("In configDataSource 2\n")
 
 	return nil
 }
