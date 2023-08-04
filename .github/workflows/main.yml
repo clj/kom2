@@ -108,7 +108,7 @@ jobs:
         if: matrix.test == true && matrix.os != 'windows-latest'
 
       - name: Run tests (Windows)
-        run: sudo ./inst.exe install --dll=${{ matrix.output }} && KOM2_DRIVER_NAME=kom2 KOM2_DRIVER_LIBRARY=./${{ matrix.output }} pytest
+        run: cp {{ matrix.output }} kom2.dll && ./inst.exe install && KOM2_DRIVER_NAME=kom2 KOM2_DRIVER_LIBRARY=./${{ matrix.output }} pytest
         if: matrix.test == true && matrix.os == 'windows-latest'
 
       - name: Upload artifacts
