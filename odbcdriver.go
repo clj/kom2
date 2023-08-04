@@ -609,7 +609,7 @@ func (s *statementHandle) fetchPart(category string, column string, value any, p
 		//      This is mostly to make running manual queries not annoying.
 
 	default:
-		panic(fmt.Sprintf("invalid filter column: %s", column))
+		return fmt.Errorf("Invalid filter column: %s", column)
 	}
 
 	getPart := func() error {
@@ -1138,12 +1138,14 @@ func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 
 	if s.statement.condition == nil {
 		var parts []map[string]any
-		s.fetchAllParts(s.statement.table, &parts)
+		if err := s.fetchAllParts(s.statement.table, &parts); err != nil {
+			return SetAndReturnError(s, &DriverError{SqlState: "HY000", Message: "Unable to fetch parts", Err: err})
+		}
 		s.populateColDesc(&parts)
 		s.data = make([][]any, 0, len(parts))
 		s.populateData(&parts)
 		s.conn.updateIpnToPkMap(&parts)
-	} else if s.statement.condition != nil {
+	} else {
 		var parts []map[string]any
 		var value any
 		if s.params == nil {
@@ -1152,13 +1154,11 @@ func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 			value = C.GoString((*C.char)(s.params[0].ParameterValuePtr))
 		}
 		if err := s.fetchPart(s.statement.table, s.statement.condition.column, value, &parts); err != nil {
-			panic(err)
+			return SetAndReturnError(s, &DriverError{SqlState: "HY000", Message: "Unable to fetch parts", Err: err})
 		}
 		s.populateColDesc(&parts)
 		s.data = make([][]any, 0, len(parts))
 		s.populateData(&parts)
-	} else {
-		panic("uh?")
 	}
 
 	return C.SQL_SUCCESS
@@ -1478,6 +1478,7 @@ func min[T constraints.Ordered](a, b T) T {
 	return b
 }
 
+// See: https://learn.microsoft.com/en-us/sql/odbc/reference/appendixes/converting-data-from-sql-to-c-data-types?view=sql-server-ver16
 func populateData(value any, TargetType C.SQLSMALLINT,
 	TargetValuePtr C.SQLPOINTER, BufferLength C.SQLLEN, StrLen_or_IndPtr *C.SQLLEN,
 ) {
@@ -1546,14 +1547,19 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 			}
 			*StrLen_or_IndPtr = 4
 		case C.SQL_C_CHAR:
-			value := fmt.Sprintf("%t", value)
+			var strValue string
+			if value {
+				strValue = "1"
+			} else {
+				strValue = "0"
+			}
 			if TargetValuePtr != nil {
 				dst := (*C.char)(TargetValuePtr)
-				src := C.CString(value)
+				src := C.CString(strValue)
 				defer C.free(unsafe.Pointer(src))
 				C.strncpy(dst, src, C.size_t(BufferLength))
 			}
-			*StrLen_or_IndPtr = C.SQLLEN(len(value))
+			*StrLen_or_IndPtr = C.SQLLEN(len(strValue))
 		default:
 			*StrLen_or_IndPtr = C.SQL_NULL_DATA
 		}
