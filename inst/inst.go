@@ -158,17 +158,23 @@ func install(driverName, dll, installPath string) error {
 	var pathLen C.WORD
 	var usageCount C.DWORD
 
+	fmt.Printf("In install 1\n")
 	dst := installPath + "\\" + dll
 	if _, err := copyFile(dll, dst); err != nil {
 		return err
 	}
+	fmt.Printf("In install 2\n")
 
 	path := C.malloc(C.size_t(maxPath))
 	defer C.free(path)
 
+	fmt.Printf("In install 3\n")
 	if C.SQLInstallDriverEx(C.CString(driverString(driverName, dll, installPath)), C.CString(installPath), C.LPSTR(path), maxPath, &pathLen, C.ODBC_INSTALL_COMPLETE, &usageCount) != 1 {
+		fmt.Printf("In install 3.1\n")
+
 		return getSQLInstallerError()
 	}
+	fmt.Printf("In install 4\n")
 
 	return nil
 }
