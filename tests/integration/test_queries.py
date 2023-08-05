@@ -1,5 +1,7 @@
+import copy
 import json
 
+import jsonpointer
 import pytest
 import pypyodbc
 
@@ -273,14 +275,24 @@ parts = json.loads("""
 
 
 @pytest.fixture
-def parts_resource(httpserver):
-    httpserver.expect_request("/api/part/").respond_with_json(parts)
+def parts_resource(httpserver, request):
+    modded_parts = copy.deepcopy(parts)
+    marker = request.node.get_closest_marker('part_mods')
+    if marker:
+        for path, val in marker.args[0]:
+            jsonpointer.set_pointer(modded_parts, path, val)
+    httpserver.expect_request("/api/part/").respond_with_json(modded_parts)
 
 
 @pytest.fixture
-def part_resource(httpserver):
-    for part in parts:
-        httpserver.expect_request(f"/api/part/{part['pk']}/").respond_with_json(part)
+def part_resource(httpserver, request):
+    modded_parts = copy.deepcopy(parts)
+    marker = request.node.get_closest_marker('part_mods')
+    if marker:
+        for path, val in marker.args[0]:
+            jsonpointer.set_pointer(modded_parts, path, val)
+    for part, modded_part in zip(parts, modded_parts):
+        httpserver.expect_request(f"/api/part/{part['pk']}/").respond_with_json(modded_part)
 
 
 @pytest.fixture
@@ -448,3 +460,51 @@ def test_conditional_select(httpserver, driver_name, token_resource, categories_
 
     results = crsr.fetchall()
     assert len(results) == 1
+
+
+@pytest.mark.parametrize(
+    "expected", [
+        pytest.param("'pk' is not a number", marks=pytest.mark.part_mods([("/0/pk", "sixteen")])),
+        pytest.param("was unable to convert 'pk' to an int64", marks=pytest.mark.part_mods([("/0/pk", 16.1)]))]
+)
+def test_invalid_part_pk(httpserver, driver_name, token_resource, categories_resource, parts_resource, expected):
+    server = httpserver.url_for("")
+    cnxn = pypyodbc.connect(
+        f"Driver={driver_name};server={server};username=asdf;password=asdf"
+    )
+    crsr = cnxn.cursor()
+    crsr.prepare("SELECT * FROM Resistors")
+    # pypyodbc doesn't allow us to execute the prepares statements
+    # unless we call the SQLExecute function directly
+    ret = pypyodbc.SQLExecute(crsr.stmt_h)
+    assert ret == pypyodbc.SQL_ERROR  # redundant, but what we actually are trying to do
+    with pytest.raises(pypyodbc.Error) as exception:
+        # Because SQLExecute was updated directly, also call:
+        pypyodbc.check_success(crsr, ret)
+    assert "HY000" == exception.value.args[0]
+    assert "Unable to fetch parts" in exception.value.args[1]
+    assert expected in exception.value.args[1]
+
+
+@pytest.mark.parametrize(
+    "expected", [
+        pytest.param("'pk' is not a number", marks=pytest.mark.part_mods([("/0/pk", "sixteen")])),
+        pytest.param("was unable to convert 'pk' to an int64", marks=pytest.mark.part_mods([("/0/pk", 16.1)]))]
+)
+def test_invalid_parts_pk(httpserver, driver_name, token_resource, categories_resource, parts_resource, part_resource, part_parameters_resource, expected):
+    server = httpserver.url_for("")
+    cnxn = pypyodbc.connect(
+        f"Driver={driver_name};server={server};username=asdf;password=asdf"
+    )
+    crsr = cnxn.cursor()
+    crsr.prepare("SELECT * FROM Resistors WHERE IPN = '123'")
+    # pypyodbc doesn't allow us to execute the prepares statements
+    # unless we call the SQLExecute function directly
+    ret = pypyodbc.SQLExecute(crsr.stmt_h)
+    assert ret == pypyodbc.SQL_ERROR
+    with pytest.raises(pypyodbc.Error) as exception:
+        # Because SQLExecute was updated directly, also call:
+        pypyodbc.check_success(crsr, ret)
+    assert "HY000" == exception.value.args[0]
+    assert "Unable to fetch parts" in exception.value.args[1]
+    assert expected in exception.value.args[1]

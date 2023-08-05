@@ -452,7 +452,7 @@ func (c *connectionHandle) MarshalZerologObject(e *zerolog.Event) {
 	e.EmbedObject(c.env).Hex("handle_conn", addressBytes(unsafe.Pointer(c)))
 }
 
-func (c *connectionHandle) updateIpnToPkMap(parts *[]map[string]any) {
+func (c *connectionHandle) updateIpnToPkMap(parts *[]map[string]any) error {
 	if c.ipnToPkMap == nil {
 		c.ipnToPkMap = make(map[string]any)
 	}
@@ -461,9 +461,13 @@ func (c *connectionHandle) updateIpnToPkMap(parts *[]map[string]any) {
 		if part["IPN"] == nil {
 			continue
 		}
-		pk, err := part["pk"].(json.Number).Int64()
+		number, ok := part["pk"].(json.Number)
+		if !ok {
+			return fmt.Errorf("'pk' is not a number: %q", part["pk"])
+		}
+		pk, err := number.Int64()
 		if err != nil {
-			panic("Was unable to convert 'pk' to an int64")
+			return fmt.Errorf("was unable to convert 'pk' to an int64: %v", part["pk"])
 		}
 		ipn := part["IPN"].(string)
 
@@ -472,6 +476,8 @@ func (c *connectionHandle) updateIpnToPkMap(parts *[]map[string]any) {
 		}
 		c.ipnToPkMap[ipn] = pk
 	}
+
+	return nil
 }
 
 func (c *connectionHandle) getApiToken(userName, password string) (string, error) {
@@ -595,7 +601,9 @@ func (s *statementHandle) fetchPart(category string, column string, value any, p
 				return err
 			}
 
-			s.conn.updateIpnToPkMap(&tmpParts)
+			if err := s.conn.updateIpnToPkMap(&tmpParts); err != nil {
+				return err
+			}
 		}
 
 		var ok bool
@@ -1144,7 +1152,9 @@ func SQLExecute(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 		s.populateColDesc(&parts)
 		s.data = make([][]any, 0, len(parts))
 		s.populateData(&parts)
-		s.conn.updateIpnToPkMap(&parts)
+		if err := s.conn.updateIpnToPkMap(&parts); err != nil {
+			return SetAndReturnError(s, &DriverError{SqlState: "HY000", Message: "Unable to fetch parts", Err: err})
+		}
 	} else {
 		var parts []map[string]any
 		var value any
