@@ -1763,10 +1763,10 @@ func SQLBindParameter(
 	}
 
 	if InputOutputType != C.SQL_PARAM_INPUT {
-		panic("InputOutputType != C.SQL_PARAM_INPUT")
+		return SetAndReturnError(s, &DriverError{SqlState: "HYC00", Message: "InputOutputType != C.SQL_PARAM_INPUT"})
 	}
 	if ValueType != C.SQL_C_CHAR {
-		panic("ValueType != C.SQL_C_CHAR")
+		return SetAndReturnError(s, &DriverError{SqlState: "HYC00", Message: "ValueType != C.SQL_C_CHAR"})
 	}
 
 	param := param{
