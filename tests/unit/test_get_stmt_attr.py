@@ -20,8 +20,10 @@ def test_descs(C, stmt_handle, attr):
     length_ptr = C.ffi.new("SQLINTEGER*")
 
     attr = getattr(C, attr)
-    assert C.SQLGetStmtAttr(stmt_handle, attr, buffer, length, length_ptr) == C.SQL_SUCCESS
-    assert int(C.ffi.cast("unsigned int", buffer[0])) == 0xdeadbeef
+    assert (
+        C.SQLGetStmtAttr(stmt_handle, attr, buffer, length, length_ptr) == C.SQL_SUCCESS
+    )
+    assert int(C.ffi.cast("unsigned int", buffer[0])) == 0xDEADBEEF
     assert length_ptr[0] == 8
 
 
@@ -32,4 +34,4 @@ def test_descs_no_length(C, stmt_handle, attr):
 
     attr = getattr(C, attr)
     assert C.SQLGetStmtAttr(stmt_handle, attr, buffer, length, C.NULL) == C.SQL_SUCCESS
-    assert int(C.ffi.cast("unsigned int", buffer[0])) == 0xdeadbeef
+    assert int(C.ffi.cast("unsigned int", buffer[0])) == 0xDEADBEEF

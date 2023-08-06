@@ -3,4 +3,7 @@ def test_connect_invalid_handle(C):
 
 
 def test_driver_connect_invalid_handle(C):
-    assert C.SQLDriverConnect(C.NULL, C.NULL, C.NULL, 0, C.NULL, 0, C.NULL, 0) == C.SQL_INVALID_HANDLE
+    assert (
+        C.SQLDriverConnect(C.NULL, C.NULL, C.NULL, 0, C.NULL, 0, C.NULL, 0)
+        == C.SQL_INVALID_HANDLE
+    )

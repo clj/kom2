@@ -319,9 +319,7 @@ def maybe_skip_windows():
     if not (name := get_driver_name()):
         return False
     try:
-        pypyodbc.connect(
-            f"Driver={name}"
-        )
+        pypyodbc.connect(f"Driver={name}")
     except pypyodbc.Error as error:
         return error.args[0] == "IM002"
     return False

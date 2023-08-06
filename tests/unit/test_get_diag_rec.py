@@ -48,7 +48,7 @@ def test_env_error(C, env_handle):
     )
     assert result == C.SQL_SUCCESS
     assert C.ffi.string(sql_state) == b"HYC00"
-    assert C.ffi.buffer(sql_state, 6)[:] == b'HYC00\x00'
+    assert C.ffi.buffer(sql_state, 6)[:] == b"HYC00\x00"
     assert C.ffi.string(buffer) == b"Unsupported attribute"
     assert text_len[0] == len(C.ffi.string(buffer))
 

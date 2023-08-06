@@ -8,14 +8,16 @@ import pypyodbc
 from ..conftest import maybe_skip_windows
 
 
-pytestmark = pytest.mark.skipif(maybe_skip_windows(), reason="Could not load kom2 driver on Windows")
+pytestmark = pytest.mark.skipif(
+    maybe_skip_windows(), reason="Could not load kom2 driver on Windows"
+)
 
 
 @pytest.fixture
 def token_resource(httpserver):
-    httpserver.expect_request("/api/user/token").respond_with_json({
-            "token": "0123456789012345678901234567890123456789"
-        })
+    httpserver.expect_request("/api/user/token").respond_with_json(
+        {"token": "0123456789012345678901234567890123456789"}
+    )
 
 
 @pytest.fixture
@@ -84,11 +86,13 @@ def categories_resource(httpserver):
                 "icon": ""
             }
         ]
-    """, content_type="application/json"
+    """,
+        content_type="application/json",
     )
 
 
-parts = json.loads("""
+parts = json.loads(
+    """
         [
             {
                     "active": true,
@@ -271,13 +275,14 @@ parts = json.loads("""
                     "copy_category_parameters": true
                 }
             ]
-            """)
+            """
+)
 
 
 @pytest.fixture
 def parts_resource(httpserver, request):
     modded_parts = copy.deepcopy(parts)
-    marker = request.node.get_closest_marker('part_mods')
+    marker = request.node.get_closest_marker("part_mods")
     if marker:
         for path, val in marker.args[0]:
             jsonpointer.set_pointer(modded_parts, path, val)
@@ -287,18 +292,22 @@ def parts_resource(httpserver, request):
 @pytest.fixture
 def part_resource(httpserver, request):
     modded_parts = copy.deepcopy(parts)
-    marker = request.node.get_closest_marker('part_mods')
+    marker = request.node.get_closest_marker("part_mods")
     if marker:
         for path, val in marker.args[0]:
             jsonpointer.set_pointer(modded_parts, path, val)
     for part, modded_part in zip(parts, modded_parts):
-        httpserver.expect_request(f"/api/part/{part['pk']}/").respond_with_json(modded_part)
+        httpserver.expect_request(f"/api/part/{part['pk']}/").respond_with_json(
+            modded_part
+        )
 
 
 @pytest.fixture
 def part_parameters_resource(httpserver):
     for part in parts:
-        httpserver.expect_request(f"/api/part/parameter/", query_string=f"part={part['pk']}").respond_with_data(
+        httpserver.expect_request(
+            f"/api/part/parameter/", query_string=f"part={part['pk']}"
+        ).respond_with_data(
             """
             [
                 {
@@ -326,7 +335,9 @@ def part_parameters_resource(httpserver):
                     "data": "17V"
                 }
             ]
-        """, content_type="application/json")
+        """,
+            content_type="application/json",
+        )
 
 
 def test_invalid_select(httpserver, driver_name, token_resource, categories_resource):
@@ -341,7 +352,9 @@ def test_invalid_select(httpserver, driver_name, token_resource, categories_reso
     assert "* expected, got: id" in exception.value.args[1]
 
 
-def test_unconditional_select_invalid_table(httpserver, driver_name, token_resource, categories_resource):
+def test_unconditional_select_invalid_table(
+    httpserver, driver_name, token_resource, categories_resource
+):
     server = httpserver.url_for("")
     cnxn = pypyodbc.connect(
         f"Driver={driver_name};server={server};username=asdf;password=asdf"
@@ -359,7 +372,9 @@ def test_unconditional_select_invalid_table(httpserver, driver_name, token_resou
     assert "Category does not exist" in exception.value.args[1]
 
 
-def test_unconditional_select_resource_error(httpserver, driver_name, token_resource, categories_resource):
+def test_unconditional_select_resource_error(
+    httpserver, driver_name, token_resource, categories_resource
+):
     server = httpserver.url_for("")
     cnxn = pypyodbc.connect(
         f"Driver={driver_name};server={server};username=asdf;password=asdf"
@@ -376,7 +391,9 @@ def test_unconditional_select_resource_error(httpserver, driver_name, token_reso
     assert "Unable to fetch parts" in exception.value.args[1]
 
 
-def test_unconditional_select(httpserver, driver_name, token_resource, categories_resource, parts_resource):
+def test_unconditional_select(
+    httpserver, driver_name, token_resource, categories_resource, parts_resource
+):
     # TODO: check the category in query string for parts request
     server = httpserver.url_for("")
     cnxn = pypyodbc.connect(
@@ -389,7 +406,9 @@ def test_unconditional_select(httpserver, driver_name, token_resource, categorie
     ret = pypyodbc.SQLExecute(crsr.stmt_h)
     if ret != pypyodbc.SQL_SUCCESS:
         pypyodbc.check_success(crsr, ret)
-    assert ret == pypyodbc.SQL_SUCCESS  # redundant, but what we actually are trying to do
+    assert (
+        ret == pypyodbc.SQL_SUCCESS
+    )  # redundant, but what we actually are trying to do
     # Because SQLExecute was updated directly, also call:
     pypyodbc.check_success(crsr, ret)
     crsr._NumOfRows()
@@ -399,7 +418,9 @@ def test_unconditional_select(httpserver, driver_name, token_resource, categorie
     assert len(results) == 4
 
 
-def test_conditional_select_invalid_condition_column(httpserver, driver_name, token_resource, categories_resource):
+def test_conditional_select_invalid_condition_column(
+    httpserver, driver_name, token_resource, categories_resource
+):
     server = httpserver.url_for("")
     cnxn = pypyodbc.connect(
         f"Driver={driver_name};server={server};username=asdf;password=asdf"
@@ -417,12 +438,17 @@ def test_conditional_select_invalid_condition_column(httpserver, driver_name, to
     assert "Invalid filter column" in exception.value.args[1]
 
 
-@pytest.mark.parametrize("_", [
-    None,
-    pytest.lazy_fixture("part_resource"),
-    pytest.lazy_fixture("part_parameters_resource"),
-])
-def test_conditional_select_resource_error(httpserver, driver_name, token_resource, categories_resource, _):
+@pytest.mark.parametrize(
+    "_",
+    [
+        None,
+        pytest.lazy_fixture("part_resource"),
+        pytest.lazy_fixture("part_parameters_resource"),
+    ],
+)
+def test_conditional_select_resource_error(
+    httpserver, driver_name, token_resource, categories_resource, _
+):
     server = httpserver.url_for("")
     cnxn = pypyodbc.connect(
         f"Driver={driver_name};server={server};username=asdf;password=asdf"
@@ -439,7 +465,14 @@ def test_conditional_select_resource_error(httpserver, driver_name, token_resour
     assert "Unable to fetch parts" in exception.value.args[1]
 
 
-def test_conditional_select(httpserver, driver_name, token_resource, categories_resource, part_resource, part_parameters_resource):
+def test_conditional_select(
+    httpserver,
+    driver_name,
+    token_resource,
+    categories_resource,
+    part_resource,
+    part_parameters_resource,
+):
     # TODO: check the category in query string for parts request
     server = httpserver.url_for("")
     cnxn = pypyodbc.connect(
@@ -452,7 +485,9 @@ def test_conditional_select(httpserver, driver_name, token_resource, categories_
     ret = pypyodbc.SQLExecute(crsr.stmt_h)
     if ret != pypyodbc.SQL_SUCCESS:
         pypyodbc.check_success(crsr, ret)
-    assert ret == pypyodbc.SQL_SUCCESS  # redundant, but what we actually are trying to do
+    assert (
+        ret == pypyodbc.SQL_SUCCESS
+    )  # redundant, but what we actually are trying to do
     # Because SQLExecute was updated directly, also call:
     pypyodbc.check_success(crsr, ret)
     crsr._NumOfRows()
@@ -463,11 +498,25 @@ def test_conditional_select(httpserver, driver_name, token_resource, categories_
 
 
 @pytest.mark.parametrize(
-    "expected", [
-        pytest.param("'pk' is not a number", marks=pytest.mark.part_mods([("/0/pk", "sixteen")])),
-        pytest.param("was unable to convert 'pk' to an int64", marks=pytest.mark.part_mods([("/0/pk", 16.1)]))]
+    "expected",
+    [
+        pytest.param(
+            "'pk' is not a number", marks=pytest.mark.part_mods([("/0/pk", "sixteen")])
+        ),
+        pytest.param(
+            "was unable to convert 'pk' to an int64",
+            marks=pytest.mark.part_mods([("/0/pk", 16.1)]),
+        ),
+    ],
 )
-def test_invalid_part_pk(httpserver, driver_name, token_resource, categories_resource, parts_resource, expected):
+def test_invalid_part_pk(
+    httpserver,
+    driver_name,
+    token_resource,
+    categories_resource,
+    parts_resource,
+    expected,
+):
     server = httpserver.url_for("")
     cnxn = pypyodbc.connect(
         f"Driver={driver_name};server={server};username=asdf;password=asdf"
@@ -487,11 +536,27 @@ def test_invalid_part_pk(httpserver, driver_name, token_resource, categories_res
 
 
 @pytest.mark.parametrize(
-    "expected", [
-        pytest.param("'pk' is not a number", marks=pytest.mark.part_mods([("/0/pk", "sixteen")])),
-        pytest.param("was unable to convert 'pk' to an int64", marks=pytest.mark.part_mods([("/0/pk", 16.1)]))]
+    "expected",
+    [
+        pytest.param(
+            "'pk' is not a number", marks=pytest.mark.part_mods([("/0/pk", "sixteen")])
+        ),
+        pytest.param(
+            "was unable to convert 'pk' to an int64",
+            marks=pytest.mark.part_mods([("/0/pk", 16.1)]),
+        ),
+    ],
 )
-def test_invalid_parts_pk(httpserver, driver_name, token_resource, categories_resource, parts_resource, part_resource, part_parameters_resource, expected):
+def test_invalid_parts_pk(
+    httpserver,
+    driver_name,
+    token_resource,
+    categories_resource,
+    parts_resource,
+    part_resource,
+    part_parameters_resource,
+    expected,
+):
     server = httpserver.url_for("")
     cnxn = pypyodbc.connect(
         f"Driver={driver_name};server={server};username=asdf;password=asdf"

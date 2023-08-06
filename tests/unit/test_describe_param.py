@@ -19,11 +19,15 @@ def get_diag_rec(C, stmt_handle):
         )
         assert result == C.SQL_SUCCESS
         return sql_state, result
+
     return fn
 
 
 def test_invalid_handle(C):
-    assert C.SQLDescribeParam(C.NULL, 2, C.NULL, C.NULL, C.NULL, C.NULL) == C.SQL_INVALID_HANDLE
+    assert (
+        C.SQLDescribeParam(C.NULL, 2, C.NULL, C.NULL, C.NULL, C.NULL)
+        == C.SQL_INVALID_HANDLE
+    )
 
 
 def test_param_one(C, stmt_handle):
@@ -32,13 +36,26 @@ def test_param_one(C, stmt_handle):
     decimal_digits_ptr = C.NULL
     nullable_ptr = C.ffi.new("SQLSMALLINT *")
 
-    assert C.SQLDescribeParam(stmt_handle, 1, data_type_ptr, parameter_size_ptr, decimal_digits_ptr, nullable_ptr) == C.SQL_SUCCESS
+    assert (
+        C.SQLDescribeParam(
+            stmt_handle,
+            1,
+            data_type_ptr,
+            parameter_size_ptr,
+            decimal_digits_ptr,
+            nullable_ptr,
+        )
+        == C.SQL_SUCCESS
+    )
     assert data_type_ptr[0] == C.SQL_VARCHAR
     # assert parameter_size_ptr[0] == C.SQL_NO_TOTAL    Not sure this is correct
     assert nullable_ptr[0] == C.SQL_NO_NULLS
 
 
 def test_invalid_param(C, stmt_handle, get_diag_rec):
-    assert C.SQLDescribeParam(stmt_handle, 2, C.NULL, C.NULL, C.NULL, C.NULL) == C.SQL_ERROR
+    assert (
+        C.SQLDescribeParam(stmt_handle, 2, C.NULL, C.NULL, C.NULL, C.NULL)
+        == C.SQL_ERROR
+    )
     sql_state, _ = get_diag_rec()
     assert C.ffi.string(sql_state) == b"07009"

@@ -6,7 +6,9 @@ import pytest
 from ..conftest import maybe_skip_windows
 
 
-pytestmark = pytest.mark.skipif(maybe_skip_windows(), reason="Could not load kom2 driver on Windows")
+pytestmark = pytest.mark.skipif(
+    maybe_skip_windows(), reason="Could not load kom2 driver on Windows"
+)
 
 
 def test_connect_without_server(driver_name):
