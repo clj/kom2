@@ -1844,11 +1844,13 @@ func VersionInfo(
 ) int {
 	ver := fmt.Sprintf("%s %s %s", Version, Commit, BuildDate)
 
-	dst := (*C.char)(ResultPtr)
-	src := C.CString(ver + "\x00")
-	defer C.free(unsafe.Pointer(src))
-	length := min(len(ver)+1, int(BufferLength)-1)
-	C.strncpy(dst, src, C.size_t(length))
+	if ResultPtr != nil && BufferLength > 1 {
+		dst := (*C.char)(ResultPtr)
+		src := C.CString(ver + "\x00")
+		defer C.free(unsafe.Pointer(src))
+		length := min(len(ver)+1, int(BufferLength)-1)
+		C.strncpy(dst, src, C.size_t(length))
+	}
 
 	return len(ver) + 1
 }

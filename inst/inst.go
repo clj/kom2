@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"syscall"
 	"unsafe"
 )
 
@@ -198,6 +199,11 @@ func main() {
 	uninstallCmd.StringVar(&driverName, "driver", "kom2", "driver name")
 	uninstallCmd.StringVar(&dsnName, "dsnName", "kom2", "dsn name")
 
+	infoCmd := flag.NewFlagSet("info", flag.ExitOnError)
+	infoCmd.StringVar(&dll, "dll", "kom2.dll", "name of the dll")
+	infoCmd.StringVar(&driverName, "driver", "kom2", "driver name")
+	infoCmd.StringVar(&dsnName, "dsnName", "kom2", "dsn name")
+
 	if len(os.Args) < 2 {
 		fmt.Println(subcommandMsg)
 		os.Exit(1)
@@ -236,6 +242,36 @@ func main() {
 		}
 
 		deleteFile(path)
+	case "info":
+		infoCmd.Parse(os.Args[2:])
+
+		var err error
+		var path string
+		if path, err = getInstallPath(driverName, dll); err != nil {
+			panic(err)
+		}
+		dllPath := path + "\\" + dll
+
+		mod := syscall.NewLazyDLL(dllPath)
+		proc := mod.NewProc("VersionInfo")
+		version := func() string {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Println(r)
+					os.Exit(1)
+				}
+			}()
+			buffer := C.malloc(250)
+			defer C.free(buffer)
+			_, _, err = proc.Call(uintptr(buffer), uintptr(250))
+			if err != syscall.Errno(0) {
+				fmt.Println(err.Error())
+				os.Exit(1)
+			}
+			return C.GoString((*C.char)(buffer))
+		}()
+
+		fmt.Printf("path: %s; version: %s\n", dllPath, version)
 	default:
 		fmt.Println(subcommandMsg)
 		os.Exit(1)
