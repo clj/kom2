@@ -435,7 +435,7 @@ def test_conditional_select_invalid_condition_column(
         # Because SQLExecute was updated directly, also call:
         pypyodbc.check_success(crsr, ret)
     assert "Unable to fetch parts" in exception.value.args[1]
-    assert "Invalid filter column" in exception.value.args[1]
+    assert "invalid filter column" in exception.value.args[1]
 
 
 @pytest.mark.parametrize(
