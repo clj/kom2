@@ -1104,13 +1104,13 @@ func maybeUnquote(literal string) string {
 
 func splitSQL(sql string) []string {
 	// XXX Should support some form of escaping
-	r := regexp.MustCompile(`[^\s"']+|"([^"]*)"|'([^']*)`)
+	r := regexp.MustCompile(`[^\s,"']+|"([^"]*)"|'([^']*)`)
 
 	return r.FindAllString(sql, -1)
 }
 
 //export SQLPrepare
-func SQLPrepare(StatementHandle C.SQLHSTMT, StatementText *C.SQLCHAR, TextLength C.SQLINTEGER) C.SQLRETURN {
+func SQLPrepare(StatementHandle C.SQLHSTMT, StatementText *C.SQLCHAR, TextLength C.SQLINTEGER) (result C.SQLRETURN) {
 	s := resolveStatementHandle(StatementHandle)
 	if s == nil {
 		return C.SQL_INVALID_HANDLE
@@ -1123,28 +1123,56 @@ func SQLPrepare(StatementHandle C.SQLHSTMT, StatementText *C.SQLCHAR, TextLength
 	statementText = strings.TrimSpace(statementText)
 
 	statementParts := splitSQL(statementText)
-	if strings.ToUpper(statementParts[0]) != "SELECT" {
-		return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("SELECT expected, got: %s", statementParts[0])})
-	}
-	if strings.ToUpper(statementParts[1]) != "*" {
-		return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("* expected, got: %s", statementParts[1])})
-	}
-	if strings.ToUpper(statementParts[2]) != "FROM" {
-		return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("FROM expected, got: %s", statementParts[2])})
-	}
-	s.statement = &stmt{
-		table: maybeUnquote(statementParts[3]),
-	}
-	if len(statementParts) > 4 {
-		if strings.ToUpper(statementParts[4]) != "WHERE" {
-			return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("WHERE expected, got: %s", statementParts[4])})
+	part := 0
+
+	match := func(str string) {
+		if strings.ToUpper(statementParts[part]) != str {
+			result = SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("%s expected, got: %s", str, statementParts[part])})
+			panic("Invalid match")
 		}
-		if strings.ToUpper(statementParts[6]) != "=" {
-			return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("= expected, got: %s", statementParts[6])})
+		part += 1
+	}
+	value := func() string {
+		value := statementParts[part]
+		part += 1
+		return value
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			switch e := err.(type) {
+			case error:
+				result = SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("unable to parse query: %s", e)})
+			default:
+				if result == 0 {
+					// Something else than the match paniced
+					panic(e)
+				}
+			}
+		}
+	}()
+
+	match("SELECT")
+	for ; part < len(statementParts); part++ {
+		// TODO: Record desired columns and optimise part fetching
+		if statementParts[part] == "*" {
+			break
+		} else if strings.ToUpper(statementParts[part+1]) == "FROM" {
+			break
+		}
+	}
+	part += 1
+	match("FROM")
+	s.statement = &stmt{
+		table: maybeUnquote(value()),
+	}
+	if len(statementParts) > part {
+		match("WHERE")
+		if statementParts[part+1] != "=" {
+			return SetAndReturnError(s, &DriverError{SqlState: "42000", Message: fmt.Sprintf("= expected, got: %s", statementParts[part])})
 		}
 		s.statement.condition = &cond{
-			column: maybeUnquote(statementParts[5]),
-			value:  maybeUnquote(statementParts[7]),
+			column: maybeUnquote(statementParts[part]),
+			value:  maybeUnquote(statementParts[part+2]),
 		}
 	}
 

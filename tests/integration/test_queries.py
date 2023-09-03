@@ -340,18 +340,6 @@ def part_parameters_resource(httpserver):
         )
 
 
-def test_invalid_select(httpserver, driver_name, token_resource, categories_resource):
-    server = httpserver.url_for("")
-    cnxn = pypyodbc.connect(
-        f"Driver={driver_name};server={server};username=asdf;password=asdf"
-    )
-    crsr = cnxn.cursor()
-    with pytest.raises(pypyodbc.ProgrammingError) as exception:
-        crsr.prepare("SELECT id FROM ATable")
-    assert exception.value.args[0] == "42000"
-    assert "* expected, got: id" in exception.value.args[1]
-
-
 def test_unconditional_select_invalid_table(
     httpserver, driver_name, token_resource, categories_resource
 ):
@@ -391,8 +379,20 @@ def test_unconditional_select_resource_error(
     assert "Unable to fetch parts" in exception.value.args[1]
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "SELECT * FROM Resistors",
+        "SELECT IPN FROM Resistors",
+        'SELECT "IPN" FROM Resistors',
+        "SELECT IPN, pk FROM Resistors",
+        'SELECT "IPN", "pk" FROM Resistors',
+        "SELECT IPN,pk FROM Resistors",
+        'SELECT "IPN","pk" FROM Resistors',
+    ],
+)
 def test_unconditional_select(
-    httpserver, driver_name, token_resource, categories_resource, parts_resource
+    httpserver, driver_name, token_resource, categories_resource, parts_resource, query
 ):
     # TODO: check the category in query string for parts request
     server = httpserver.url_for("")
@@ -400,7 +400,7 @@ def test_unconditional_select(
         f"Driver={driver_name};server={server};username=asdf;password=asdf"
     )
     crsr = cnxn.cursor()
-    crsr.prepare("SELECT * FROM Resistors")
+    crsr.prepare(query)
     # pypyodbc doesn't allow us to execute the prepares statements
     # unless we call the SQLExecute function directly
     ret = pypyodbc.SQLExecute(crsr.stmt_h)
