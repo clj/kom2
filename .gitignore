@@ -1,4 +1,8 @@
 kom2.h
 kom2.dylib
+kom2.dll
+inst.exe
 env/
 __pycache__/
+.vscode/
+*.syso
