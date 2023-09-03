@@ -1,6 +1,7 @@
 import pytest
 
 
+@pytest.mark.skip("Result depends on compilation args")
 @pytest.mark.parametrize("buf_len", [100, 9, 8, 7, 4, 2])
 def test_version_info(C, buf_len):
     buffer = C.ffi.new("char[]", buf_len)
