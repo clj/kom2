@@ -287,6 +287,8 @@ def C(driver_library, platform_defines):
         #include <sqltypes.h>
         #include <sql.h>
         #include <sqlext.h>
+
+        int VersionInfo(char*, int);
         """,
         driver_library,
     )
