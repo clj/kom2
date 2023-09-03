@@ -617,7 +617,7 @@ func (s *statementHandle) fetchPart(category string, column string, value any, p
 		//      This is mostly to make running manual queries not annoying.
 
 	default:
-		return fmt.Errorf("Invalid filter column: %s", column)
+		return fmt.Errorf("invalid filter column: %s", column)
 	}
 
 	getPart := func() error {
