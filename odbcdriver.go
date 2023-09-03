@@ -870,6 +870,22 @@ func SQLGetDiagRec(
 		return C.SQL_INVALID_HANDLE
 	}
 
+	/* On Windows 10 (at least, but not 11) these have to be zeroed
+	   even when returning SQL_NO_DATA
+	*/
+	if SQLState != nil {
+		*SQLState = 0
+	}
+	if NativeErrorPtr != nil {
+		*NativeErrorPtr = 0
+	}
+	if MessageText != nil && BufferLength > 0 {
+		*MessageText = 0
+	}
+	if TextLengthPtr != nil {
+		*TextLengthPtr = 0
+	}
+
 	if errorInfo == nil {
 		log.Debug().Msg("errInfo was nil")
 		return C.SQL_NO_DATA

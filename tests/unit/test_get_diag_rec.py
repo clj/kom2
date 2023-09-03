@@ -27,6 +27,31 @@ def test_no_error(C, env_handle):
     assert result == C.SQL_NO_DATA
 
 
+def test_no_error_zeroed(C, env_handle):
+    sql_state = C.ffi.new("SQLCHAR[]", 6)
+    native_error = C.ffi.new("SQLINTEGER*")
+    buffer = C.ffi.new("SQLCHAR[]", 100)
+    text_len = C.ffi.new("SQLSMALLINT*")
+
+    native_error[0] = 1
+
+    result = C.SQLGetDiagRec(
+        C.SQL_HANDLE_ENV,
+        env_handle,
+        0,
+        sql_state,
+        native_error,
+        buffer,
+        len(buffer),
+        text_len,
+    )
+    assert result == C.SQL_NO_DATA
+    assert C.ffi.string(sql_state) == b""
+    assert native_error[0] == 0
+    assert C.ffi.string(buffer) == b""
+    assert text_len[0] == 0
+
+
 def test_env_error(C, env_handle):
     assert (
         C.SQLSetEnvAttr(env_handle, C.SQL_ATTR_CONNECTION_POOLING, C.NULL, 0)
