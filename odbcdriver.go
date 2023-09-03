@@ -858,13 +858,13 @@ func SQLGetDiagRec(
 			return C.SQL_INVALID_HANDLE
 		}
 		errorInfo = handle.errorInfo.errorInfo
-		log = handle.log.With().Str("fn", "SQLGetDiagReg").Str("handle_type", "SQL_HANDLE_DBC").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
+		log = handle.log.With().Str("fn", "SQLGetDiagRec").Str("handle_type", "SQL_HANDLE_DBC").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
 	case *statementHandle:
 		if HandleType != C.SQL_HANDLE_STMT {
 			return C.SQL_INVALID_HANDLE
 		}
 		errorInfo = handle.errorInfo.errorInfo
-		log = handle.log.With().Str("fn", "SQLGetDiagReg").Str("handle_type", "SQL_HANDLE_STMT").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
+		log = handle.log.With().Str("fn", "SQLGetDiagRec").Str("handle_type", "SQL_HANDLE_STMT").Hex("handle", addressBytes(unsafe.Pointer(handle))).Logger()
 
 	default:
 		return C.SQL_INVALID_HANDLE
