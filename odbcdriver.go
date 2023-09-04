@@ -1272,12 +1272,27 @@ func SQLTables(StatementHandle C.SQLHSTMT, CatalogName *C.SQLCHAR, NameLength1 C
 	}
 	categories := s.conn.categoryMapping
 	s.index = -1
-	s.data = make([][]any, 0, len(categories))
-	for name := range categories {
-		s.data = append(s.data, []any{nil, nil, name, "TABLE", nil})
-		log.Debug().Str("category", name).Msg("adding category")
+	s.data = nil
+	if TableName == nil {
+		s.data = make([][]any, 0, len(categories))
+		for name := range categories {
+			fmt.Println(name)
+			s.data = append(s.data, []any{nil, nil, name, "TABLE", nil})
+			log.Debug().Str("category", name).Msg("adding category")
+		}
+		log.Debug().Msgf("added %d categories", len(s.data))
+	} else {
+		tableName := toGoString(TableName, NameLength3)
+
+		for name := range categories {
+			if name == tableName {
+				s.data = make([][]any, 0, 1)
+				s.data = append(s.data, []any{nil, nil, name, "TABLE", nil})
+				log.Debug().Str("category", name).Msg("adding category")
+			}
+		}
+
 	}
-	log.Debug().Msgf("added %d categories", len(s.data))
 
 	log.Info().Str("return", "SQL_SUCCESS").Send()
 	return C.SQL_SUCCESS
@@ -1434,7 +1449,7 @@ func SQLBindCol(StatementHandle C.SQLHSTMT, ColumnNumber C.SQLUSMALLINT, TargetT
 	log := s.log.With().Str("fn", "SQLBindCol").Dict("args", zerolog.Dict().Uint("ColumnNumber", uint(ColumnNumber))).Logger()
 
 	if s.binds == nil {
-		length := len(s.data[0])
+		length := len(s.def)
 		s.binds = make([]*bind, length)
 		log.Debug().Int("len", length).Msg("creating binds array")
 	}
@@ -1460,7 +1475,7 @@ func SQLFetchScroll(StatementHandle C.SQLHSTMT, FetchOrientation C.SQLSMALLINT, 
 	s.index = s.index + 1
 	log := s.log.With().Str("fn", "SQLFetchScroll").Int("index", s.index).Logger()
 
-	if s.index >= len(s.data) {
+	if s.data == nil || s.index >= len(s.data) {
 		log.Info().Str("return", "SQL_NO_DATA").Send()
 		return C.SQL_NO_DATA
 	}
@@ -1488,7 +1503,7 @@ func SQLFetch(StatementHandle C.SQLHSTMT) C.SQLRETURN {
 	s.index = s.index + 1
 	log := s.log.With().Str("fn", "SQLFetch").Int("index", s.index).Logger()
 
-	if s.index >= len(s.data) {
+	if s.data == nil || s.index >= len(s.data) {
 		log.Info().Str("return", "SQL_NO_DATA").Send()
 		return C.SQL_NO_DATA
 	}

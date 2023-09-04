@@ -573,3 +573,31 @@ def test_invalid_parts_pk(
     assert "HY000" == exception.value.args[0]
     assert "Unable to fetch parts" in exception.value.args[1]
     assert expected in exception.value.args[1]
+
+
+@pytest.mark.parametrize(
+    "table, expected",
+    [
+        (
+            None,
+            [
+                (None, None, "Capacitors", "TABLE", None),
+                (None, None, "Capacitors/Aluminium", "TABLE", None),
+                (None, None, "Resistors", "TABLE", None),
+                (None, None, "Resistors/NTC", "TABLE", None),
+            ],
+        ),
+        ("Capacitors/Aluminium", [(None, None, "Capacitors/Aluminium", "TABLE", None)]),
+        ("Capacitors/Kryptonite", []),
+    ],
+)
+def test_tables(
+    httpserver, driver_name, token_resource, categories_resource, table, expected
+):
+    server = httpserver.url_for("")
+    cnxn = pypyodbc.connect(
+        f"Driver={driver_name};server={server};username=asdf;password=asdf"
+    )
+    tables = cnxn.cursor().tables(table=table)
+
+    assert set(tables) == set(expected)
