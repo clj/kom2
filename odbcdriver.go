@@ -1371,7 +1371,7 @@ func SQLSetStmtAttr(StatementHandle C.SQLHSTMT, Attribute C.SQLINTEGER, ValuePtr
 	case C.SQL_ATTR_ROWS_FETCHED_PTR:
 		s.rowsFetchedPtr = (*C.SQLULEN)(ValuePtr)
 		log.Debug().Msg("set rowsFetchedPtr")
-		log.Info().Str("return", "SQL_ERROR").Send()
+		log.Info().Str("return", "SQL_SUCCESS").Send()
 		return C.SQL_SUCCESS
 	case C.SQL_ATTR_CURSOR_TYPE:
 		if uintptr(ValuePtr) != 1 {
@@ -1379,7 +1379,7 @@ func SQLSetStmtAttr(StatementHandle C.SQLHSTMT, Attribute C.SQLINTEGER, ValuePtr
 			log.Info().Str("return", "SQL_ERROR").Send()
 			return C.SQL_ERROR
 		}
-		log.Info().Str("return", "SQL_ERROR").Send()
+		log.Info().Str("return", "SQL_SUCCESS").Send()
 		return C.SQL_SUCCESS
 	case C.SQL_ATTR_PARAMSET_SIZE:
 		if uintptr(ValuePtr) != 1 {
@@ -1387,7 +1387,7 @@ func SQLSetStmtAttr(StatementHandle C.SQLHSTMT, Attribute C.SQLINTEGER, ValuePtr
 			log.Info().Str("return", "SQL_ERROR").Send()
 			return C.SQL_ERROR
 		}
-		log.Info().Str("return", "SQL_ERROR").Send()
+		log.Info().Str("return", "SQL_SUCCESS").Send()
 		return C.SQL_SUCCESS
 	}
 	log.Info().Str("return", "SQL_ERROR").Send()
