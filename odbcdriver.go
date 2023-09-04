@@ -1516,6 +1516,11 @@ func utf8stringToUTF16(str string) *[]uint16 {
 	return &result
 }
 
+func addUTF16Null(str *[]uint16) *[]uint16 {
+	result := utf16.AppendRune(*str, '\000')
+	return &result
+}
+
 func targetTypeToString(TargetType C.SQLSMALLINT) string {
 	switch TargetType {
 	case C.SQL_C_CHAR:
@@ -1553,13 +1558,14 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 			*StrLen_or_IndPtr = C.SQLLEN(len(value))
 		case C.SQL_C_WCHAR:
 			src := utf8stringToUTF16(value.String())
+			src = addUTF16Null(src)
 			length := min(C.SQLLEN(len(*src)*2), BufferLength)
 
 			if len(*src) > 0 && TargetValuePtr != nil {
 				C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.size_t(length))
 			}
 
-			*StrLen_or_IndPtr = C.SQLLEN(length)
+			*StrLen_or_IndPtr = C.SQLLEN(len(value))
 		case C.SQL_DOUBLE:
 			if value, err := value.Float64(); err == nil {
 				*(*C.double)(TargetValuePtr) = C.double(value)
@@ -1587,13 +1593,14 @@ func populateData(value any, TargetType C.SQLSMALLINT,
 			*StrLen_or_IndPtr = C.SQLLEN(len(value))
 		case C.SQL_C_WCHAR:
 			src := utf8stringToUTF16(value)
+			src = addUTF16Null(src)
 			length := min(C.SQLLEN(len(*src)*2), BufferLength)
 
 			if len(*src) > 0 && TargetValuePtr != nil {
 				C.memcpy(unsafe.Pointer((TargetValuePtr)), unsafe.Pointer(&(*src)[0]), C.size_t(length))
 			}
 
-			*StrLen_or_IndPtr = C.SQLLEN(length)
+			*StrLen_or_IndPtr = C.SQLLEN(len(value))
 		}
 	case bool:
 		switch TargetType {
