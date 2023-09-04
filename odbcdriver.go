@@ -1696,7 +1696,16 @@ func SQLColAttribute(
 
 //export SQLRowCount
 func SQLRowCount(StatementHandle C.SQLHSTMT, RowCountPtr *C.SQLLEN) C.SQLRETURN {
-	*RowCountPtr = 1
+	s := resolveStatementHandle(StatementHandle)
+	if s == nil {
+		return C.SQL_INVALID_HANDLE
+	}
+
+	if s.data == nil {
+		*RowCountPtr = 0
+	}
+
+	*RowCountPtr = C.SQLLEN(len(s.data))
 
 	return C.SQL_SUCCESS
 }
