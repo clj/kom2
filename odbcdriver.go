@@ -1389,6 +1389,10 @@ func SQLSetStmtAttr(StatementHandle C.SQLHSTMT, Attribute C.SQLINTEGER, ValuePtr
 		}
 		log.Info().Str("return", "SQL_SUCCESS").Send()
 		return C.SQL_SUCCESS
+	case C.SQL_ATTR_QUERY_TIMEOUT:
+		// Ignored
+		log.Info().Str("return", "SQL_SUCCESS").Send()
+		return C.SQL_SUCCESS
 	}
 	log.Info().Str("return", "SQL_ERROR").Send()
 	return C.SQL_ERROR
