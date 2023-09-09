@@ -351,7 +351,7 @@ def test_unconditional_select_invalid_table(
     )
     crsr = cnxn.cursor()
     crsr.prepare("SELECT * FROM Pizzas")
-    # pypyodbc doesn't allow us to execute the prepares statements
+    # pypyodbc doesn't allow us to execute the prepared statements
     # unless we call the SQLExecute function directly
     ret = pypyodbc.SQLExecute(crsr.stmt_h)
     assert ret == pypyodbc.SQL_ERROR
