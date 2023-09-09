@@ -52,8 +52,8 @@ Create a `inventree.kicad_dbl` file with a valid configuration (see the [KiCad d
     },
     "libraries": [
         {
-            "name": "Resistors",
-            "table": "Electronics/Passives/Resistors",
+            "name": "Capacitors",
+            "table": "Electronics/Passives/Capacitors",
             "key": "pk",
             "symbols": "parameter.Symbol",
             "footprints": "parameter.Footprint",
@@ -67,7 +67,7 @@ Create a `inventree.kicad_dbl` file with a valid configuration (see the [KiCad d
                     "inherit_properties": true
                 },
                 {
-                    "column": "parameter.Value",
+                    "column": "parameter.Capacitance",
                     "name": "Value",
                     "visible_on_add": true,
                     "visible_in_chooser": true,
