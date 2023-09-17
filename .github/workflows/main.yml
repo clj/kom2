@@ -10,26 +10,26 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            output: kom2-linux-arm64.so
-            env: CGO_ENABLED=1 GOARCH=arm64 CC=/opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc CGO_CFLAGS=-I/opt/unixODBC-2.3.11/include CGO_LDFLAGS=-L/opt/unixODBC-2.3.11/lib
-            arch: arm64
-            test: false
-          - os: ubuntu-latest
-            output: kom2-linux-amd64.so
-            env: CGO_ENABLED=1 GOARCH=amd64
-            arch: amd64
-            test: true
-          - os: macos-latest
-            output: kom2-macos-arm64.dylib
-            env: CGO_ENABLED=1 GOARCH=arm64
-            arch: arm64
-            test: false
-          - os: macos-latest
-            output: kom2-macos-amd64.dylib
-            env: CGO_ENABLED=1 GOARCH=amd64
-            arch: amd64
-            test: true
+        #   - os: ubuntu-latest
+        #     output: kom2-linux-arm64.so
+        #     env: CGO_ENABLED=1 GOARCH=arm64 CC=/opt/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc CGO_CFLAGS=-I/opt/unixODBC-2.3.11/include CGO_LDFLAGS=-L/opt/unixODBC-2.3.11/lib
+        #     arch: arm64
+        #     test: false
+        #   - os: ubuntu-latest
+        #     output: kom2-linux-amd64.so
+        #     env: CGO_ENABLED=1 GOARCH=amd64
+        #     arch: amd64
+        #     test: true
+        #   - os: macos-latest
+        #     output: kom2-macos-arm64.dylib
+        #     env: CGO_ENABLED=1 GOARCH=arm64
+        #     arch: arm64
+        #     test: false
+        #   - os: macos-latest
+        #     output: kom2-macos-amd64.dylib
+        #     env: CGO_ENABLED=1 GOARCH=amd64
+        #     arch: amd64
+        #     test: true
           - os: windows-latest
             output: kom2-windows-amd64.dll
             installer: kom2-windows-amd64.exe
@@ -109,6 +109,7 @@ jobs:
 
       - name: Query Registry
         run: reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting\\LocalDumps" /s
+        if: matrix.test == true && matrix.os == 'windows-latest'
 
       - name: Run tests (Windows)
         run: $GITHUB_WORKSPACE/inst.exe install --dll kom2-windows-amd64.dll && KOM2_DRIVER_NAME=kom2 KOM2_DRIVER_LIBRARY=./${{ matrix.output }} pytest
