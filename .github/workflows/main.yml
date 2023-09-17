@@ -108,7 +108,11 @@ jobs:
         if: matrix.test == true && matrix.os != 'windows-latest'
 
       - name: Query Registry
-        run: reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps" /s
+        run: |
+          reg add "KEY_LOCAL_MACHINE\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /ve DumpFolder /t REG_EXPAND_SZ /d "C:\"
+          reg add "KEY_LOCAL_MACHINE\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /ve DumpCount /t REG_DWORD /d 100
+          reg add "KEY_LOCAL_MACHINE\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /ve DumpDumpTypeFolder /t REG_DWORD /d 1
+          reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps"
         shell: pwsh
         if: matrix.test == true && matrix.os == 'windows-latest'
 
@@ -116,6 +120,8 @@ jobs:
         run: $GITHUB_WORKSPACE/inst.exe install --dll kom2-windows-amd64.dll
         shell: pwsh
         if: matrix.test == true && matrix.os == 'windows-latest'
+
+      - run: ls /c/
 
       - name: Run tests (Windows)
         run: KOM2_DRIVER_NAME=kom2 KOM2_DRIVER_LIBRARY=./${{ matrix.output }} pytest
