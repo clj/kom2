@@ -116,6 +116,10 @@ jobs:
         shell: pwsh
         if: matrix.test == true && matrix.os == 'windows-latest'
 
+      - name: Display the path
+        shell: pwsh
+        run: echo $env:GITHUB_WORKSPACE\inst.exe
+
       - name: Install driver (windowwsss)
         run: '& $env:GITHUB_WORKSPACE\inst.exe install --dll kom2-windows-amd64.dll'
         shell: pwsh
