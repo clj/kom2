@@ -109,9 +109,9 @@ jobs:
 
       - name: Query Registry
         run: |
-          reg add "KEY_LOCAL_MACHINE\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpFolder /t REG_EXPAND_SZ /d "C:\"
-          reg add "KEY_LOCAL_MACHINE\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpCount /t REG_DWORD /d 100
-          reg add "KEY_LOCAL_MACHINE\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpDumpTypeFolder /t REG_DWORD /d 1
+          reg add "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpFolder /t REG_EXPAND_SZ /d "C:\"
+          reg add "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpCount /t REG_DWORD /d 100
+          reg add "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpDumpTypeFolder /t REG_DWORD /d 1
           reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps"
         shell: pwsh
         if: matrix.test == true && matrix.os == 'windows-latest'
