@@ -117,7 +117,7 @@ jobs:
         if: matrix.test == true && matrix.os == 'windows-latest'
 
       - name: Install driver (windowwsss)
-        run: $env:GITHUB_WORKSPACE\inst.exe install --dll kom2-windows-amd64.dll
+        run: ${env:GITHUB_WORKSPACE}\inst.exe install --dll kom2-windows-amd64.dll
         shell: pwsh
         if: matrix.test == true && matrix.os == 'windows-latest'
 
