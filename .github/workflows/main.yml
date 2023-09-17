@@ -108,7 +108,7 @@ jobs:
         if: matrix.test == true && matrix.os != 'windows-latest'
 
       - name: Query Registry
-        run: reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting\\LocalDumps" /s
+        run: reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps" /s
         if: matrix.test == true && matrix.os == 'windows-latest'
 
       - name: Run tests (Windows)
